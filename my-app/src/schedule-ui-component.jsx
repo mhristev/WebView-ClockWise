@@ -1614,13 +1614,42 @@ function ScheduleApp() {
     const availabilities = getAvailabilitiesForDay(employeeId, day);
 
     return (
-      <div className="h-full w-full flex flex-col">
+      <div className="h-full w-full flex flex-col relative min-h-[4rem]">
+        {/* Display availabilities in top right corner */}
+        {availabilities && availabilities.length > 0 ? (
+          <div className="absolute top-0 right-0 z-10 flex flex-wrap gap-0.5 max-w-[90%]">
+            {availabilities.map((availability, index) => {
+              // Format start and end times
+              const startTime = new Date(availability.startTime);
+              const endTime = new Date(availability.endTime);
+
+              // Skip invalid dates
+              if (isNaN(startTime) || isNaN(endTime)) {
+                console.error("Invalid date in availability:", availability);
+                return null;
+              }
+
+              const timeStr = `${formatTime(startTime)}-${formatTime(endTime)}`;
+
+              return (
+                <div
+                  key={`avail-${index}`}
+                  className="bg-green-50 border border-green-300 rounded px-1 py-0.5 text-[9px] text-green-800 hover:bg-green-100 shadow-sm"
+                  title={`Available: ${timeStr}`}
+                >
+                  {timeStr}
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+
         {/* Display the shift */}
         {shift && (
           <div
             className={`${
               positionColors[shift.position] || "bg-gray-100 border-gray-300"
-            } border rounded p-1 text-xs relative mb-1 cursor-pointer`}
+            } border rounded p-1 text-xs relative mb-1 cursor-pointer mt-5`}
             onClick={(e) => {
               e.stopPropagation();
               openShiftModal(employeeId, day, shift);
@@ -1642,41 +1671,12 @@ function ScheduleApp() {
           </div>
         )}
 
-        {/* Display availabilities */}
-        {availabilities && availabilities.length > 0 ? (
-          <div className="flex flex-wrap gap-1 mt-1">
-            {availabilities.map((availability, index) => {
-              // Format start and end times
-              const startTime = new Date(availability.startTime);
-              const endTime = new Date(availability.endTime);
-
-              // Skip invalid dates
-              if (isNaN(startTime) || isNaN(endTime)) {
-                console.error("Invalid date in availability:", availability);
-                return null;
-              }
-
-              const timeStr = `${formatTime(startTime)}-${formatTime(endTime)}`;
-
-              return (
-                <div
-                  key={`avail-${index}`}
-                  className="bg-green-50 border border-green-300 rounded px-1 py-0.5 text-[10px] text-green-800 hover:bg-green-100"
-                  title={`Available: ${timeStr}`}
-                >
-                  {timeStr}
-                </div>
-              );
-            })}
-          </div>
-        ) : null}
-
         {/* Add empty div for clickable area if no shift */}
         {!shift && (
           <div
             className={`h-full w-full cursor-${
               isSchedulePublished ? "default" : "pointer"
-            }`}
+            } mt-5`}
             onClick={() =>
               !isSchedulePublished && openShiftModal(employeeId, day)
             }
@@ -1829,7 +1829,7 @@ function ScheduleApp() {
         <div className="flex flex-wrap space-x-2 lg:space-x-4">
           <div className="font-medium">Availability:</div>
           <div className="flex items-center">
-            <div className="inline-block bg-gray-50 border border-gray-200 rounded px-1 py-0.5 text-[10px] text-gray-600 mr-1">
+            <div className="inline-block bg-green-50 border border-green-300 rounded px-1 py-0.5 text-[10px] text-green-800 mr-1">
               10:00-14:00
             </div>
             <span>Employee submitted availability</span>
@@ -1838,7 +1838,7 @@ function ScheduleApp() {
       </div>
 
       {/* Stats Bar - fixed to prevent horizontal scrolling */}
-      <div className="grid grid-cols-7 bg-gray-100 p-2 border-t border-b text-center text-xs">
+      <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-7 bg-gray-100 p-2 border-t border-b text-center text-xs gap-1">
         <div className="flex flex-col justify-center">
           <div className="text-gray-800 font-medium truncate">
             {stats.estWages}
@@ -1847,21 +1847,9 @@ function ScheduleApp() {
         </div>
         <div className="flex flex-col justify-center">
           <div className="text-gray-800 font-medium truncate">
-            {stats.otCost}
-          </div>
-          <div className="text-gray-500 truncate">OT COST</div>
-        </div>
-        <div className="flex flex-col justify-center">
-          <div className="text-gray-800 font-medium truncate">
             {stats.scheduledHours}
           </div>
           <div className="text-gray-500 truncate">HOURS</div>
-        </div>
-        <div className="flex flex-col justify-center">
-          <div className="text-gray-800 font-medium truncate">
-            {stats.otHours}
-          </div>
-          <div className="text-gray-500 truncate">OT HRS</div>
         </div>
         <div className="flex flex-col justify-center">
           <div
@@ -1875,13 +1863,25 @@ function ScheduleApp() {
           </div>
           <div className="text-gray-500 truncate">LABOR%</div>
         </div>
-        <div className="flex flex-col justify-center">
+        <div className="hidden md:flex flex-col justify-center">
+          <div className="text-gray-800 font-medium truncate">
+            {stats.otCost}
+          </div>
+          <div className="text-gray-500 truncate">OT COST</div>
+        </div>
+        <div className="hidden lg:flex flex-col justify-center">
+          <div className="text-gray-800 font-medium truncate">
+            {stats.otHours}
+          </div>
+          <div className="text-gray-500 truncate">OT HRS</div>
+        </div>
+        <div className="hidden lg:flex flex-col justify-center">
           <div className="text-gray-800 font-medium truncate">
             {stats.absences}
           </div>
           <div className="text-gray-500 truncate">ABS</div>
         </div>
-        <div className="flex flex-col justify-center">
+        <div className="hidden lg:flex flex-col justify-center">
           <div className="text-gray-800 font-medium truncate">
             {stats.totalShifts}
           </div>
@@ -1894,7 +1894,7 @@ function ScheduleApp() {
         <div className="min-w-full h-full">
           {/* Day Headers - Enhanced visibility */}
           <div className="grid grid-cols-8 border-b sticky top-0 bg-white z-10">
-            <div className="p-1 lg:p-2 font-medium text-gray-500 border-r w-20 lg:w-32 min-w-20 lg:min-w-32">
+            <div className="p-1 lg:p-2 font-medium text-gray-500 border-r w-16 md:w-20 lg:w-32 min-w-[4rem] md:min-w-[5rem] lg:min-w-[8rem]">
               SHIFTS
             </div>
             {daysOfWeek.map((day, i) => (
@@ -1902,8 +1902,10 @@ function ScheduleApp() {
                 key={day}
                 className="p-1 lg:p-2 text-center border-r bg-gray-50"
               >
-                <div className="font-semibold text-gray-700">{day}</div>
-                <div className="font-bold text-gray-900 text-base lg:text-lg">
+                <div className="font-semibold text-gray-700 text-[10px] sm:text-xs">
+                  {day}
+                </div>
+                <div className="font-bold text-gray-900 text-xs md:text-sm lg:text-lg">
                   {columnDates[i]}
                 </div>
               </div>
@@ -1922,105 +1924,35 @@ function ScheduleApp() {
           ) : (
             <div className="overflow-x-auto">
               {employees.map((employee) => {
-                console.log(
-                  `Rendering employee row for: ${employee.name} (ID: ${employee.id})`
-                );
-
-                // Get all shifts for this employee to check
-                const weekId = getWeekIdentifier(currentWeekStart);
-                const allWeekShifts = weeklySchedules[weekId] || {};
-                const shiftsForEmployee =
-                  allWeekShifts[String(employee.id)] || [];
-
-                if (shiftsForEmployee.length > 0) {
-                  console.log(
-                    `Found ${shiftsForEmployee.length} shifts for employee ${employee.id} in current week`,
-                    shiftsForEmployee
-                  );
-                } else {
-                  console.log(
-                    `No shifts found for employee ${employee.id} in current week. Available shifts:`,
-                    allWeekShifts
-                  );
-                }
-
                 return (
                   <div
                     key={employee.id}
-                    className="grid grid-cols-8 border-b hover:bg-gray-50 text-xs lg:text-sm min-w-max lg:min-w-0"
+                    className="grid grid-cols-8 border-b hover:bg-gray-50 text-[10px] sm:text-xs lg:text-sm"
                   >
                     {/* Employee Info */}
-                    <div className="p-1 lg:p-2 border-r flex items-center w-20 lg:w-32 min-w-20 lg:min-w-32">
-                      <div className="bg-gray-200 rounded-full h-6 w-6 lg:h-8 lg:w-8 flex items-center justify-center mr-1 lg:mr-2 text-xs lg:text-sm">
+                    <div className="p-1 lg:p-2 border-r flex items-center w-16 md:w-20 lg:w-32 min-w-[4rem] md:min-w-[5rem] lg:min-w-[8rem] sticky left-0 bg-white z-10">
+                      <div className="bg-gray-200 rounded-full h-5 w-5 md:h-6 md:w-6 lg:h-8 lg:w-8 flex items-center justify-center mr-1 text-[9px] sm:text-xs lg:text-sm shrink-0">
                         {employee.id?.substring(0, 2)?.toUpperCase() || "EE"}
                       </div>
                       <div className="truncate">
-                        <div className="font-medium truncate">
+                        <div className="font-medium truncate text-[10px] sm:text-xs">
                           {employee.name || "Unknown Employee"}
                         </div>
-                        <div className="text-xs text-gray-500 hidden lg:block">
+                        <div className="text-[8px] sm:text-[10px] text-gray-500 hidden sm:block">
                           {employee.hours} • {employee.hourlyRate}
                         </div>
                       </div>
                     </div>
 
                     {/* Shifts */}
-                    {(() => {
-                      console.log(
-                        `-----Rendering shifts row for employee ${employee.name} (ID: ${employee.id})-----`
-                      );
-                      console.log(`Employee ID type: ${typeof employee.id}`);
-
-                      // Deep check of current week's shifts
-                      const currentWeekShifts = getCurrentWeekShifts();
-                      console.log(
-                        "All current week shifts:",
-                        currentWeekShifts
-                      );
-
-                      // Check if this employee has shifts in the current week
-                      const employeeShifts =
-                        currentWeekShifts[String(employee.id)];
-                      console.log(
-                        `Shifts for employee ${employee.id}:`,
-                        employeeShifts
-                      );
-
-                      // Return the actual cells
-                      return Array.from({ length: 7 }, (_, day) => {
-                        console.log(
-                          `Checking day ${day} for employee ${employee.id}`
-                        );
-                        const shift = getShiftForDay(employee.id, day);
-                        console.log(
-                          `getShiftForDay result for day ${day}:`,
-                          shift
-                        );
-
-                        // Make sure shifts are being found correctly
-                        if (employeeShifts) {
-                          const shiftFromEmployeeShifts = employeeShifts.find(
-                            (s) => s.day === day
-                          );
-                          console.log(
-                            `Direct check for shift on day ${day}:`,
-                            shiftFromEmployeeShifts
-                          );
-                          console.log(
-                            `Shift match: ${shift === shiftFromEmployeeShifts}`
-                          );
-                        }
-
-                        return (
-                          <div
-                            key={day}
-                            className="p-2 border-r relative min-h-16 flex-1"
-                          >
-                            {renderShiftCell(employee.id, day)}
-                          </div>
-                        );
-                      });
-                    })()}
+                    {Array.from({ length: 7 }, (_, day) => (
+                      <div
+                        key={day}
+                        className="p-1 md:p-2 border-r relative min-h-[4rem] flex-1"
+                      >
+                        {renderShiftCell(employee.id, day)}
+                      </div>
+                    ))}
                   </div>
                 );
               })}
@@ -2324,10 +2256,10 @@ function ScheduleApp() {
               </div>
             </div>
 
-            <div className="flex justify-between mt-6">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-6 gap-2">
               {!currentShift.id.includes("new") && (
                 <button
-                  className="bg-red-500 text-white px-4 py-2 rounded flex items-center"
+                  className="bg-red-500 text-white px-4 py-2 rounded flex items-center justify-center"
                   onClick={() => {
                     deleteShift(currentShift.employeeId, currentShift.id);
                   }}
