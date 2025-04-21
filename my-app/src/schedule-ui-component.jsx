@@ -113,10 +113,11 @@ function ScheduleApp() {
     }
   }, [user]);
 
-  // Initialize component by fetching employees when mounted
+  // Initialize component by fetching employees and availabilities when mounted
   useEffect(() => {
     console.log("Initializing ScheduleApp - fetching employees");
     fetchEmployees();
+    fetchAvailabilities(currentWeekStart);
   }, []); // Empty dependency array to run only once on mount
 
   // State
@@ -132,6 +133,7 @@ function ScheduleApp() {
   const [isSaving, setIsSaving] = useState(false);
   const [currentScheduleId, setCurrentScheduleId] = useState(null);
   const [isSchedulePublished, setIsSchedulePublished] = useState(false);
+  const [employeeAvailabilities, setEmployeeAvailabilities] = useState({});
   const [stats, setStats] = useState({
     estWages: "$0.00",
     otCost: "$0.00",
@@ -246,6 +248,123 @@ function ScheduleApp() {
         },
       ];
       setEmployees(sampleEmployees);
+    }
+  };
+
+  // Fetch availabilities from the API
+  const fetchAvailabilities = async (weekStart) => {
+    try {
+      // Calculate week end (Sunday)
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+
+      // Format dates for API call
+      const startDateStr = weekStart.toISOString();
+      const endDateStr = weekEnd.toISOString();
+
+      console.log(
+        `Fetching availabilities from ${startDateStr} to ${endDateStr}`
+      );
+
+      // Using the endpoint to get availabilities for a specific business unit
+      const businessUnitId = user?.businessUnitId;
+      if (!businessUnitId) {
+        console.error("Business unit ID not available");
+        return;
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/business-units/${businessUnitId}/availabilities?startDate=${startDateStr}&endDate=${endDateStr}`,
+        { headers: getAuthHeaders() }
+      );
+      console.log("Availabilities response:", response);
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          // Handle unauthorized - token might be expired
+          logout();
+          throw new Error("Session expired. Please login again.");
+        }
+        throw new Error(`Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("Availabilities data from API:", data);
+
+      // Log some sample data to understand the structure better
+      if (data && data.length > 0) {
+        console.log("Sample availability structure:", data[0]);
+        console.log(
+          "Sample startTime:",
+          data[0].startTime,
+          "type:",
+          typeof data[0].startTime
+        );
+      } else {
+        console.log("No availabilities returned from API");
+      }
+
+      // Organize availabilities by employee ID
+      const availabilitiesByEmployee = {};
+
+      data.forEach((availability) => {
+        // Convert dates from array format if necessary
+        if (Array.isArray(availability.startTime)) {
+          const [startYear, startMonth, startDay, startHour, startMinute] =
+            availability.startTime;
+          availability.startTime = new Date(
+            startYear,
+            startMonth - 1,
+            startDay,
+            startHour,
+            startMinute
+          );
+          console.log(
+            "Converted startTime array to Date:",
+            availability.startTime
+          );
+        } else if (typeof availability.startTime === "string") {
+          availability.startTime = new Date(availability.startTime);
+        }
+
+        if (Array.isArray(availability.endTime)) {
+          const [endYear, endMonth, endDay, endHour, endMinute] =
+            availability.endTime;
+          availability.endTime = new Date(
+            endYear,
+            endMonth - 1,
+            endDay,
+            endHour,
+            endMinute
+          );
+          console.log("Converted endTime array to Date:", availability.endTime);
+        } else if (typeof availability.endTime === "string") {
+          availability.endTime = new Date(availability.endTime);
+        }
+
+        // Skip if we couldn't parse the dates correctly
+        if (isNaN(availability.startTime) || isNaN(availability.endTime)) {
+          console.error(
+            "Invalid date in availability, skipping:",
+            availability
+          );
+          return; // Skip this iteration
+        }
+
+        // Add to the organized collection
+        if (!availabilitiesByEmployee[availability.employeeId]) {
+          availabilitiesByEmployee[availability.employeeId] = [];
+        }
+        availabilitiesByEmployee[availability.employeeId].push(availability);
+      });
+
+      console.log(
+        "Organized availabilities by employee:",
+        availabilitiesByEmployee
+      );
+      setEmployeeAvailabilities(availabilitiesByEmployee);
+    } catch (error) {
+      console.error("Error fetching availabilities:", error);
     }
   };
 
@@ -1395,8 +1514,14 @@ function ScheduleApp() {
     updateStats(processedShifts);
   };
 
-  // Helper function to format time from Date object to "08:00" format
-  const formatTime = (date) => {
+  // Helper function to format time from Date object to "08:00" format or 12-hour format
+  const formatTime = (date, use12Hour = false) => {
+    if (use12Hour) {
+      return date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
     const hours = date.getHours().toString().padStart(2, "0");
     const minutes = date.getMinutes().toString().padStart(2, "0");
     return `${hours}:${minutes}`;
@@ -1442,6 +1567,124 @@ function ScheduleApp() {
       setIsLoading(false);
     }
   }, [currentScheduleId]);
+
+  // Fetch availabilities when week changes
+  useEffect(() => {
+    fetchAvailabilities(currentWeekStart);
+  }, [currentWeekStart]);
+
+  // Get availability for a specific employee on a specific day
+  const getAvailabilitiesForDay = (employeeId, day) => {
+    if (!employeeAvailabilities[employeeId]) return [];
+
+    // Create a date object for the specific day in the current week
+    const dayDate = new Date(currentWeekStart);
+    // Add the day offset (0 = Monday, 6 = Sunday)
+    dayDate.setDate(dayDate.getDate() + Number(day));
+    // Reset time to start of day
+    dayDate.setHours(0, 0, 0, 0);
+
+    console.log(
+      `Checking availabilities for day ${day}, date: ${dayDate.toISOString()}`
+    );
+
+    const availabilities = employeeAvailabilities[employeeId].filter(
+      (availability) => {
+        const availabilityDate = new Date(availability.startTime);
+        availabilityDate.setHours(0, 0, 0, 0);
+
+        const match = availabilityDate.getTime() === dayDate.getTime();
+        console.log(
+          `Availability date: ${availabilityDate.toISOString()}, match: ${match}`
+        );
+
+        return match;
+      }
+    );
+
+    console.log(`Found ${availabilities.length} availabilities for day ${day}`);
+    return availabilities;
+  };
+
+  // Using the formatTime function defined above for availability display
+
+  // Render a shift cell with availabilities
+  const renderShiftCell = (employeeId, day) => {
+    const shift = getShiftForDay(employeeId, day);
+    const availabilities = getAvailabilitiesForDay(employeeId, day);
+
+    return (
+      <div className="h-full w-full flex flex-col">
+        {/* Display the shift */}
+        {shift && (
+          <div
+            className={`${
+              positionColors[shift.position] || "bg-gray-100 border-gray-300"
+            } border rounded p-1 text-xs relative mb-1 cursor-pointer`}
+            onClick={(e) => {
+              e.stopPropagation();
+              openShiftModal(employeeId, day, shift);
+            }}
+          >
+            {formatShiftDisplay(shift)}
+            {!isSchedulePublished && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deleteShift(employeeId, shift.id);
+                }}
+                className="absolute top-0 right-0 text-red-500 opacity-0 group-hover:opacity-100"
+                title="Delete shift"
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Display availabilities */}
+        {availabilities && availabilities.length > 0 ? (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {availabilities.map((availability, index) => {
+              // Format start and end times
+              const startTime = new Date(availability.startTime);
+              const endTime = new Date(availability.endTime);
+
+              // Skip invalid dates
+              if (isNaN(startTime) || isNaN(endTime)) {
+                console.error("Invalid date in availability:", availability);
+                return null;
+              }
+
+              const timeStr = `${formatTime(startTime)}-${formatTime(endTime)}`;
+
+              return (
+                <div
+                  key={`avail-${index}`}
+                  className="bg-green-50 border border-green-300 rounded px-1 py-0.5 text-[10px] text-green-800 hover:bg-green-100"
+                  title={`Available: ${timeStr}`}
+                >
+                  {timeStr}
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {/* Add empty div for clickable area if no shift */}
+        {!shift && (
+          <div
+            className={`h-full w-full cursor-${
+              isSchedulePublished ? "default" : "pointer"
+            }`}
+            onClick={() =>
+              !isSchedulePublished && openShiftModal(employeeId, day)
+            }
+          ></div>
+        )}
+      </div>
+    );
+  };
 
   if (isLoading) {
     return (
@@ -1567,19 +1810,30 @@ function ScheduleApp() {
       )}
 
       {/* Position Legend */}
-      <div className="flex flex-wrap space-x-2 lg:space-x-4 px-2 lg:px-4 py-2 border-t text-xs lg:text-sm">
-        <div className="font-medium">Position Colors:</div>
-        <div className="flex items-center">
-          <div className="w-3 h-3 lg:w-4 lg:h-4 bg-blue-100 border border-blue-300 mr-1 rounded"></div>
-          <span>Server</span>
+      <div className="flex flex-col space-y-2 px-2 lg:px-4 py-2 border-t text-xs lg:text-sm">
+        <div className="flex flex-wrap space-x-2 lg:space-x-4">
+          <div className="font-medium">Position Colors:</div>
+          <div className="flex items-center">
+            <div className="w-3 h-3 lg:w-4 lg:h-4 bg-blue-100 border border-blue-300 mr-1 rounded"></div>
+            <span>Server</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-3 h-3 lg:w-4 lg:h-4 bg-yellow-100 border border-yellow-300 mr-1 rounded"></div>
+            <span>Cook</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-3 h-3 lg:w-4 lg:h-4 bg-red-100 border border-red-300 mr-1 rounded"></div>
+            <span>Host</span>
+          </div>
         </div>
-        <div className="flex items-center">
-          <div className="w-3 h-3 lg:w-4 lg:h-4 bg-yellow-100 border border-yellow-300 mr-1 rounded"></div>
-          <span>Cook</span>
-        </div>
-        <div className="flex items-center">
-          <div className="w-3 h-3 lg:w-4 lg:h-4 bg-red-100 border border-red-300 mr-1 rounded"></div>
-          <span>Host</span>
+        <div className="flex flex-wrap space-x-2 lg:space-x-4">
+          <div className="font-medium">Availability:</div>
+          <div className="flex items-center">
+            <div className="inline-block bg-gray-50 border border-gray-200 rounded px-1 py-0.5 text-[10px] text-gray-600 mr-1">
+              10:00-14:00
+            </div>
+            <span>Employee submitted availability</span>
+          </div>
         </div>
       </div>
 
@@ -1762,33 +2016,7 @@ function ScheduleApp() {
                             key={day}
                             className="p-2 border-r relative min-h-16 flex-1"
                           >
-                            {shift ? (
-                              <div
-                                className={`cursor-${
-                                  isSchedulePublished ? "default" : "pointer"
-                                } w-full h-full`}
-                                onClick={() =>
-                                  !isSchedulePublished &&
-                                  openShiftModal(employee.id, day, shift)
-                                }
-                              >
-                                {console.log(
-                                  `Rendering shift for employee ${employee.id} on day ${day}`,
-                                  shift
-                                )}
-                                {formatShiftDisplay(shift)}
-                              </div>
-                            ) : (
-                              <div
-                                className={`h-full w-full cursor-${
-                                  isSchedulePublished ? "default" : "pointer"
-                                }`}
-                                onClick={() =>
-                                  !isSchedulePublished &&
-                                  openShiftModal(employee.id, day)
-                                }
-                              ></div>
-                            )}
+                            {renderShiftCell(employee.id, day)}
                           </div>
                         );
                       });
