@@ -75,14 +75,14 @@ export const AuthProvider = ({ children }) => {
     loadAuthData();
   }, []);
 
-  const login = async (username, password) => {
+  const login = async (email, password) => {
     try {
       const response = await fetch("http://localhost:8081/v1/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, password }),
       });
 
       if (!response.ok) {

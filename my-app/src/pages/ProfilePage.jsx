@@ -1,6 +1,6 @@
 import React from "react";
 import { useAuth } from "../auth/AuthContext";
-import { UserCircle, Mail, Shield, Building } from "lucide-react";
+import { UserCircle, Mail, Shield, Building, Phone } from "lucide-react";
 
 const ProfilePage = () => {
   const { user } = useAuth();
@@ -37,19 +37,37 @@ const ProfilePage = () => {
             <dl>
               <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt className="text-sm font-medium text-gray-500 flex items-center">
-                  <UserCircle size={16} className="mr-2" /> Username
+                  <UserCircle size={16} className="mr-2" /> First Name
                 </dt>
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                  {user.username}
+                  {user.firstName}
                 </dd>
               </div>
 
               <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt className="text-sm font-medium text-gray-500 flex items-center">
+                  <UserCircle size={16} className="mr-2" /> Last Name
+                </dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  {user.lastName}
+                </dd>
+              </div>
+
+              <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt className="text-sm font-medium text-gray-500 flex items-center">
                   <Mail size={16} className="mr-2" /> Email address
                 </dt>
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
                   {user.email}
+                </dd>
+              </div>
+
+              <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt className="text-sm font-medium text-gray-500 flex items-center">
+                  <Phone size={16} className="mr-2" /> Phone Number
+                </dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  {user.phoneNumber || "Not provided"}
                 </dd>
               </div>
 
