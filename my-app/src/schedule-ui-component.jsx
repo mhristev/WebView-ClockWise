@@ -18,36 +18,100 @@ import "./index.css";
 import { useAuth } from "./auth/AuthContext";
 
 // Define API base URL - use a hardcoded fallback for development
-const API_BASE_URL = "http://localhost:8080/v1";
+const API_BASE_URL = "http://localhost:8888/v1";
 
 // Timezone information for debugging
 const DEBUG_TIMEZONE = true; // Set to true to see timezone debugging logs
 const TIMEZONE_OFFSET = new Date().getTimezoneOffset() / 60; // Get local timezone offset in hours
 
-// Add a helper function that creates an ISO string without timezone conversion
-const createTimeUnadjustedISOString = (date, timeString) => {
-  // Extract hours and minutes from the time string (HH:MM format)
-  const [hours, minutes] = timeString.split(":").map((num) => parseInt(num));
+// Helper function to handle numeric timestamps (epoch seconds) from the backend
+const parseTimestamp = (timestamp) => {
+  console.log("Parsing timestamp:", timestamp, "Type:", typeof timestamp);
 
-  // Create a copy of the date to avoid modifying the original
-  const newDate = new Date(date);
+  // Check if it's a numeric timestamp
+  if (typeof timestamp === "number") {
+    // Check if it's in nanoseconds (very large number)
+    if (timestamp > 1000000000000) {
+      // Handle nanosecond precision by converting to milliseconds
+      // If the timestamp is longer than 13 digits, it's likely nanoseconds (older Java/Kotlin format)
+      const timestampStr = timestamp.toString();
+      if (timestampStr.length > 13) {
+        // Convert nanoseconds to milliseconds (divide by 1,000,000)
+        const milliseconds = Math.floor(timestamp / 1000000);
+        console.log(
+          "Converting nanosecond timestamp to milliseconds:",
+          milliseconds
+        );
+        return new Date(milliseconds);
+      } else {
+        // Regular millisecond timestamp (JavaScript standard)
+        console.log("Using millisecond timestamp directly:", timestamp);
+        return new Date(timestamp);
+      }
+    } else {
+      // It's in seconds (standard Unix timestamp)
+      console.log(
+        "Converting second timestamp to milliseconds:",
+        timestamp * 1000
+      );
+      return new Date(timestamp * 1000);
+    }
+  } else if (typeof timestamp === "string") {
+    // Check if it's a numeric string (e.g., "1746421200.000000000")
+    if (/^\d+(\.\d+)?$/.test(timestamp)) {
+      // Parse as float to handle decimal part
+      const numericTimestamp = parseFloat(timestamp);
+      // Check if it appears to be in nanoseconds
+      if (timestamp.length > 13 || timestamp.includes(".")) {
+        // Convert to milliseconds if it includes nanoseconds
+        const milliseconds = Math.floor(numericTimestamp * 1000);
+        console.log(
+          "Converting string nanosecond timestamp to milliseconds:",
+          milliseconds
+        );
+        return new Date(milliseconds);
+      } else if (numericTimestamp > 1000000000000) {
+        console.log("Parsing string millisecond timestamp:", numericTimestamp);
+        return new Date(numericTimestamp);
+      } else {
+        console.log(
+          "Parsing string second timestamp:",
+          numericTimestamp * 1000
+        );
+        return new Date(numericTimestamp * 1000);
+      }
+    }
 
-  // Set the hours and minutes
-  newDate.setHours(hours, minutes, 0, 0);
+    // It's already an ISO string, just parse it
+    console.log("Parsing ISO string timestamp:", timestamp);
+    return new Date(timestamp);
+  } else if (Array.isArray(timestamp)) {
+    // Handle array format for backward compatibility
+    try {
+      const [year, month, day, hour, minute, second = 0, nano = 0] = timestamp;
+      console.log(
+        `Parsing array timestamp: [${year}, ${month}, ${day}, ${hour}, ${minute}, ${second}, ${nano}]`
+      );
+      return new Date(
+        year,
+        month - 1,
+        day,
+        hour,
+        minute,
+        second,
+        nano / 1000000
+      );
+    } catch (e) {
+      console.error("Failed to parse timestamp array:", e);
+      return null;
+    }
+  }
 
-  // Get the date portions we need
-  const year = newDate.getFullYear();
-  const month = String(newDate.getMonth() + 1).padStart(2, "0");
-  const day = String(newDate.getDate()).padStart(2, "0");
-
-  // Create an ISO string but with the exact hours/minutes from user input
-  // This bypasses JavaScript's automatic timezone conversion
-  return `${year}-${month}-${day}T${hours.toString().padStart(2, "0")}:${minutes
-    .toString()
-    .padStart(2, "0")}:00`;
+  console.error("Unknown timestamp format:", timestamp);
+  return null;
 };
 
-// Update the createShiftRequest function to use our time-preserving approach
+// Updated createShiftRequest function to support timezone-aware times
 const createShiftRequest = (
   scheduleId,
   employeeId,
@@ -63,34 +127,43 @@ const createShiftRequest = (
   const startMin = parseInt(startMinStr);
   const endMin = parseInt(endMinStr);
 
-  // Create ISO strings without timezone adjustment
-  const startISOString = createTimeUnadjustedISOString(shiftDate, startTimeStr);
-  const endISOString = createTimeUnadjustedISOString(shiftDate, endTimeStr);
+  // Create a copy of the date to avoid modifying the original
+  const startDate = new Date(shiftDate);
+  startDate.setHours(parseInt(startHour), startMin, 0, 0);
 
-  // Check if end is before start (next day)
+  // Handle overnight shifts
   const startHourNum = parseInt(startHour);
   const endHourNum = parseInt(endHour);
   const isNextDay =
     endHourNum < startHourNum ||
     (endHourNum === startHourNum && endMin < startMin);
 
-  // If it's the next day, adjust the date part of the end time
-  let finalEndISOString = endISOString;
+  // Create end date
+  const endDate = new Date(shiftDate);
   if (isNextDay) {
-    const nextDay = new Date(shiftDate);
-    nextDay.setDate(nextDay.getDate() + 1);
-    finalEndISOString = createTimeUnadjustedISOString(nextDay, endTimeStr);
+    endDate.setDate(endDate.getDate() + 1);
   }
+  endDate.setHours(parseInt(endHour), parseInt(endMin), 0, 0);
+
+  // Get epoch seconds which are timezone-neutral
+  const startTimestamp = Math.floor(startDate.getTime() / 1000);
+  const endTimestamp = Math.floor(endDate.getTime() / 1000);
 
   console.log(
-    `Creating shift with preserved times: Start=${startTimeStr} → ${startISOString}, End=${endTimeStr} → ${finalEndISOString}, Position=${position}`
+    `Creating shift with times: Start=${startTimeStr} → ${startTimestamp}, End=${endTimeStr} → ${endTimestamp}, Position=${position}`
   );
+
+  // Log ISO strings for debugging
+  console.log("ISO strings:", {
+    startDateISO: startDate.toISOString(),
+    endDateISO: endDate.toISOString(),
+  });
 
   return {
     scheduleId,
     employeeId,
-    startTime: startISOString,
-    endTime: finalEndISOString,
+    startTime: startTimestamp,
+    endTime: endTimestamp,
     position: position,
   };
 };
@@ -197,7 +270,10 @@ function ScheduleApp() {
       // Transform the user data to match our employee structure
       const formattedEmployees = data.map((user) => ({
         id: String(user.id), // Ensure ID is a string for consistent comparisons
-        name: user.username,
+        name:
+          `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+          user.username ||
+          "Unknown", // Format as firstName lastName, fallback to username
         email: user.email,
         hourlyRate: "$0.00", // Default value, could be fetched from another endpoint
         hours: "0h", // Default value, will be calculated based on shifts
@@ -253,212 +329,211 @@ function ScheduleApp() {
 
   // Fetch availabilities from the API
   const fetchAvailabilities = async (weekStart) => {
+    if (!user) return;
+
+    setIsLoading(true);
     try {
-      // Calculate week end (Sunday)
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekEnd.getDate() + 6);
+      const businessUnitId = getRestaurantId();
 
-      // Format dates for API call
-      const startDateStr = weekStart.toISOString();
-      const endDateStr = weekEnd.toISOString();
+      // Create a date object for Monday (start of week) at 00:00:00
+      const startDate = new Date(weekStart);
+      startDate.setHours(0, 0, 0, 0);
 
-      console.log(
-        `Fetching availabilities from ${startDateStr} to ${endDateStr}`
-      );
+      // Create a date object for Sunday (end of week) at 23:59:59
+      const endDate = new Date(weekStart);
+      endDate.setDate(endDate.getDate() + 6); // Add 6 days to get to Sunday
+      endDate.setHours(23, 59, 59, 999);
 
-      // Using the endpoint to get availabilities for a specific business unit
-      const businessUnitId = user?.businessUnitId;
-      if (!businessUnitId) {
-        console.error("Business unit ID not available");
-        return;
+      // Format dates for API call - use standard ISO strings with timezone
+      const startDateStr = startDate.toISOString();
+      const endDateStr = endDate.toISOString();
+
+      if (DEBUG_TIMEZONE) {
+        console.log("Current timezone offset:", TIMEZONE_OFFSET);
+        console.log(`Fetching availabilities for week: ${formatDateRange()}`);
+        console.log(
+          `Date range: ${startDate.toDateString()} - ${endDate.toDateString()}`
+        );
+        console.log(`Start date: ${startDateStr}, End date: ${endDateStr}`);
       }
 
+      // Fetch availabilities for the week
       const response = await fetch(
         `${API_BASE_URL}/business-units/${businessUnitId}/availabilities?startDate=${startDateStr}&endDate=${endDateStr}`,
         { headers: getAuthHeaders() }
       );
-      console.log("Availabilities response:", response);
 
       if (!response.ok) {
-        if (response.status === 401) {
-          // Handle unauthorized - token might be expired
-          logout();
-          throw new Error("Session expired. Please login again.");
-        }
-        throw new Error(`Error: ${response.status}`);
+        throw new Error(`Error fetching availabilities: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log("Availabilities data from API:", data);
+      console.log(`Received ${data.length} availabilities from API:`, data);
 
-      // Log some sample data to understand the structure better
-      if (data && data.length > 0) {
-        console.log("Sample availability structure:", data[0]);
-        console.log(
-          "Sample startTime:",
-          data[0].startTime,
-          "type:",
-          typeof data[0].startTime
-        );
-      } else {
-        console.log("No availabilities returned from API");
-      }
-
-      // Organize availabilities by employee ID
+      // Process the availabilities
       const availabilitiesByEmployee = {};
 
-      data.forEach((availability) => {
-        // Convert dates from array format if necessary
-        if (Array.isArray(availability.startTime)) {
-          const [startYear, startMonth, startDay, startHour, startMinute] =
-            availability.startTime;
-          availability.startTime = new Date(
-            startYear,
-            startMonth - 1,
-            startDay,
-            startHour,
-            startMinute
-          );
-          console.log(
-            "Converted startTime array to Date:",
-            availability.startTime
-          );
-        } else if (typeof availability.startTime === "string") {
-          availability.startTime = new Date(availability.startTime);
-        }
-
-        if (Array.isArray(availability.endTime)) {
-          const [endYear, endMonth, endDay, endHour, endMinute] =
-            availability.endTime;
-          availability.endTime = new Date(
-            endYear,
-            endMonth - 1,
-            endDay,
-            endHour,
-            endMinute
-          );
-          console.log("Converted endTime array to Date:", availability.endTime);
-        } else if (typeof availability.endTime === "string") {
-          availability.endTime = new Date(availability.endTime);
-        }
-
-        // Skip if we couldn't parse the dates correctly
-        if (isNaN(availability.startTime) || isNaN(availability.endTime)) {
-          console.error(
-            "Invalid date in availability, skipping:",
-            availability
-          );
-          return; // Skip this iteration
-        }
-
-        // Add to the organized collection
+      for (const availability of data) {
+        // Initialize array for this employee if not exists
         if (!availabilitiesByEmployee[availability.employeeId]) {
           availabilitiesByEmployee[availability.employeeId] = [];
         }
-        availabilitiesByEmployee[availability.employeeId].push(availability);
-      });
 
+        try {
+          // Use the helper function to parse timestamps properly
+          const startTime = parseTimestamp(availability.startTime);
+          const endTime = parseTimestamp(availability.endTime);
+
+          if (!startTime || !endTime) {
+            console.warn(
+              "Invalid date in availability, skipping:",
+              availability
+            );
+            continue;
+          }
+
+          // Add the availability with properly parsed dates
+          availabilitiesByEmployee[availability.employeeId].push({
+            ...availability,
+            startTime,
+            endTime,
+          });
+        } catch (e) {
+          console.error("Error processing availability:", e, availability);
+        }
+      }
+
+      setEmployeeAvailabilities(availabilitiesByEmployee);
       console.log(
-        "Organized availabilities by employee:",
+        "Processed availabilities by employee:",
         availabilitiesByEmployee
       );
-      setEmployeeAvailabilities(availabilitiesByEmployee);
+
+      if (DEBUG_TIMEZONE) {
+        // Log each availability's date for debugging
+        Object.keys(availabilitiesByEmployee).forEach((employeeId) => {
+          const empAvails = availabilitiesByEmployee[employeeId];
+          console.log(
+            `Employee ${employeeId} has ${empAvails.length} availabilities:`
+          );
+          empAvails.forEach((avail, index) => {
+            console.log(
+              `  ${index + 1}. ${avail.startTime.toDateString()} (${formatTime(
+                avail.startTime
+              )}-${formatTime(avail.endTime)})`
+            );
+          });
+        });
+      }
     } catch (error) {
       console.error("Error fetching availabilities:", error);
+      setError("Failed to load employee availabilities");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Update the saveScheduleDraft function to use our time-preserving approach
+  // Update the saveScheduleDraft function
   const saveScheduleDraft = async () => {
-    setIsSaving(true);
+    if (!user) return;
 
+    setIsSaving(true);
     try {
+      const restaurantId = getRestaurantId();
+
       // Format the current week start date properly
       const weekStart = new Date(currentWeekStart);
-      weekStart.setHours(0, 0, 0, 0);
 
       // Format the date consistently for API - use full ISO string
       const dateString = weekStart.toISOString();
       console.log(`Creating schedule for week: ${dateString}`);
 
-      // Create schedule request with restaurant ID from user's business unit
-      const scheduleRequest = {
-        restaurantId: getRestaurantId(),
-        weekStart: dateString,
-      };
-
-      // Save the schedule first with auth headers
+      // Create schedule first
       const scheduleResponse = await fetch(`${API_BASE_URL}/schedules`, {
         method: "POST",
         headers: {
           ...getAuthHeaders(),
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(scheduleRequest),
+        body: JSON.stringify({
+          restaurantId,
+          weekStart: dateString,
+          status: "DRAFT",
+        }),
       });
 
       if (!scheduleResponse.ok) {
-        throw new Error(
-          `Failed to save schedule: ${scheduleResponse.statusText}`
-        );
+        throw new Error(`Error creating schedule: ${scheduleResponse.status}`);
       }
 
-      const savedSchedule = await scheduleResponse.json();
-      console.log("Successfully created schedule:", savedSchedule);
+      const scheduleData = await scheduleResponse.json();
+      console.log("Created schedule:", scheduleData);
 
-      // Store the schedule ID for later use
-      setCurrentScheduleId(savedSchedule.id);
+      setCurrentScheduleId(scheduleData.id);
 
-      // Now save all the shifts
-      const weekId = getWeekIdentifier(currentWeekStart);
-      const currentShifts = weeklySchedules[weekId] || {};
+      // Save all shifts in the current week's schedule
+      const currentShifts = getCurrentWeekShifts();
+      console.log("Saving shifts:", currentShifts);
 
-      // Create an array of promises for saving each shift
-      const shiftPromises = [];
+      const savePromises = [];
 
-      Object.entries(currentShifts).forEach(([employeeId, shifts]) => {
-        shifts.forEach((shift) => {
-          // Create a date object for the shift day
-          const shiftDate = new Date(currentWeekStart);
-          shiftDate.setDate(shiftDate.getDate() + shift.day);
+      for (const shift of currentShifts) {
+        // Create a date object for the shift day
+        const shiftDate = new Date(currentWeekStart);
+        shiftDate.setDate(shiftDate.getDate() + shift.day);
 
-          // Create the shift request using our time-preserving function
-          const shiftRequest = createShiftRequest(
-            savedSchedule.id,
-            employeeId,
-            shiftDate,
-            shift.startTime,
-            shift.endTime,
-            shift.position
-          );
+        const shiftRequest = createShiftRequest(
+          scheduleData.id,
+          shift.employeeId,
+          shiftDate,
+          shift.startTime,
+          shift.endTime,
+          shift.position
+        );
 
-          console.log(
-            `Adding shift to batch with preserved times: ${shift.startTime} - ${shift.endTime}`
-          );
-          console.log("Shift request:", shiftRequest);
-
-          // Add the fetch promise to our array
-          const shiftPromise = fetch(`${API_BASE_URL}/shifts`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(shiftRequest),
+        const savePromise = fetch(`${API_BASE_URL}/shifts`, {
+          method: "POST",
+          headers: {
+            ...getAuthHeaders(),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(shiftRequest),
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error(`Failed to save shift: ${res.status}`);
+            return res.json();
+          })
+          .then((data) => {
+            console.log("Saved shift:", data);
+            return data;
+          })
+          .catch((error) => {
+            console.error("Error saving shift:", error);
+            throw error;
           });
 
-          shiftPromises.push(shiftPromise);
-        });
-      });
+        savePromises.push(savePromise);
+      }
 
       // Wait for all shifts to be saved
-      await Promise.all(shiftPromises);
+      const results = await Promise.allSettled(savePromises);
+      console.log("Shift save results:", results);
 
-      alert("Schedule saved successfully!");
+      // Check for any failed promises
+      const failures = results.filter((r) => r.status === "rejected");
+      if (failures.length > 0) {
+        console.error(`${failures.length} shifts failed to save`);
+        setError(`${failures.length} shifts could not be saved`);
+      }
 
-      // Refresh the schedule data
-      fetchScheduleForWeek(currentWeekStart);
-    } catch (err) {
-      console.error("Failed to save schedule:", err);
-      alert(`Failed to save schedule: ${err.message}`);
+      // Refresh the schedule data from the server
+      await fetchScheduleForWeek(currentWeekStart);
+
+      // Show success
+      alert("Schedule draft saved successfully!");
+    } catch (error) {
+      console.error("Error saving schedule:", error);
+      setError("Failed to save schedule draft");
     } finally {
       setIsSaving(false);
     }
@@ -680,7 +755,22 @@ function ScheduleApp() {
   // Get current week's shifts
   const getCurrentWeekShifts = () => {
     const weekId = getWeekIdentifier(currentWeekStart);
-    return weeklySchedules[weekId] || {};
+    const shifts = weeklySchedules[weekId] || {};
+
+    if (DEBUG_TIMEZONE) {
+      console.log(`Getting shifts for week: ${weekId}`);
+      console.log(`Current week starts on: ${currentWeekStart.toDateString()}`);
+      console.log(`Found ${Object.keys(shifts).length} employees with shifts`);
+
+      // Count total shifts
+      let totalShifts = 0;
+      Object.values(shifts).forEach((employeeShifts) => {
+        totalShifts += employeeShifts.length;
+      });
+      console.log(`Total shifts for the week: ${totalShifts}`);
+    }
+
+    return shifts;
   };
 
   // Open modal to create/edit shift
@@ -1003,67 +1093,80 @@ function ScheduleApp() {
   // Get shift for employee on specific day
   const getShiftForDay = (employeeId, day) => {
     const currentShifts = getCurrentWeekShifts();
-    console.log(
-      `Getting shift for employee ${employeeId} (type: ${typeof employeeId}) on day ${day}`
-    );
+
+    if (DEBUG_TIMEZONE) {
+      console.log(
+        `Getting shift for employee ${employeeId} (type: ${typeof employeeId}) on day ${day}`
+      );
+    }
 
     // Try multiple ID formats to ensure matching
     const stringEmployeeId = String(employeeId);
     const numericEmployeeId =
       employeeId && !isNaN(employeeId) ? Number(employeeId) : null;
 
-    console.log(`Looking for shifts with employee IDs: 
-      - String: "${stringEmployeeId}" (${typeof stringEmployeeId})
-      - Numeric: ${numericEmployeeId} (${typeof numericEmployeeId})`);
+    if (DEBUG_TIMEZONE) {
+      console.log(`Looking for shifts with employee IDs: 
+        - String: "${stringEmployeeId}" (${typeof stringEmployeeId})
+        - Numeric: ${numericEmployeeId} (${typeof numericEmployeeId})`);
 
-    // Log what we're looking for in the current shifts
-    console.log(`Current shifts keys:`, Object.keys(currentShifts));
+      // Log what we're looking for in the current shifts
+      console.log(`Current shifts keys:`, Object.keys(currentShifts));
+    }
 
     // Try all possible ID formats
     let employeeShifts = currentShifts[employeeId] || [];
 
     if (employeeShifts.length === 0 && stringEmployeeId) {
       employeeShifts = currentShifts[stringEmployeeId] || [];
-      if (employeeShifts.length > 0) {
+      if (employeeShifts.length > 0 && DEBUG_TIMEZONE) {
         console.log(`Found shifts using string ID "${stringEmployeeId}"`);
       }
     }
 
     if (employeeShifts.length === 0 && numericEmployeeId !== null) {
       employeeShifts = currentShifts[numericEmployeeId] || [];
-      if (employeeShifts.length > 0) {
+      if (employeeShifts.length > 0 && DEBUG_TIMEZONE) {
         console.log(`Found shifts using numeric ID ${numericEmployeeId}`);
       }
     }
 
-    console.log(
-      `Found ${employeeShifts.length} shifts for employee ${employeeId}`
-    );
+    if (DEBUG_TIMEZONE) {
+      console.log(
+        `Found ${employeeShifts.length} shifts for employee ${employeeId}`
+      );
+
+      if (employeeShifts.length > 0) {
+        console.log("Available shifts:", employeeShifts);
+      }
+    }
 
     if (employeeShifts.length > 0) {
-      console.log("Available shifts:", employeeShifts);
-
       // Try to find the shift for this specific day
       const shift = employeeShifts.find((shift) => {
         // Ensure both are treated as numbers for comparison
         const shiftDay = Number(shift.day);
         const targetDay = Number(day);
 
-        console.log(
-          `Comparing shift day ${shiftDay} (${typeof shiftDay}) with target day ${targetDay} (${typeof targetDay})`
-        );
-        console.log(`Equal?: ${shiftDay === targetDay}`);
+        if (DEBUG_TIMEZONE) {
+          console.log(
+            `Comparing shift day ${shiftDay} (${typeof shiftDay}) with target day ${targetDay} (${typeof targetDay})`
+          );
+          console.log(`Equal?: ${shiftDay === targetDay}`);
+        }
 
         return shiftDay === targetDay;
       });
 
-      console.log(`Shift found for day ${day}:`, shift);
+      if (DEBUG_TIMEZONE) {
+        console.log(`Shift found for day ${day}:`, shift);
 
-      if (!shift) {
-        console.log(
-          `No shift found for day ${day}. Available days:`,
-          employeeShifts.map((shift) => shift.day)
-        );
+        if (!shift) {
+          console.log(
+            `No shift found for day ${day}. Available days:`,
+            employeeShifts.map((shift) => shift.day)
+          );
+        }
       }
 
       return shift;
@@ -1121,13 +1224,17 @@ function ScheduleApp() {
       // Ensure published state is reset when fetching a new week
       setIsSchedulePublished(false);
 
-      // Format the date to ensure it's at midnight
+      // Format the date to ensure it's at midnight on Monday
       const formattedWeekStart = new Date(weekStart);
       formattedWeekStart.setHours(0, 0, 0, 0);
 
-      console.log(
-        `Fetching schedule for week starting: ${formattedWeekStart.toISOString()}`
-      );
+      if (DEBUG_TIMEZONE) {
+        console.log(
+          `Fetching schedule for week starting: ${formattedWeekStart.toDateString()}`
+        );
+        console.log(`ISO date: ${formattedWeekStart.toISOString()}`);
+        console.log(`Current timezone offset: ${TIMEZONE_OFFSET} hours`);
+      }
 
       // Clear current schedule when switching weeks
       setCurrentScheduleId(null);
@@ -1203,6 +1310,18 @@ function ScheduleApp() {
             console.error(
               `Failed to fetch shifts: ${shiftsResponse.status} - ${shiftsResponse.statusText}`
             );
+
+            // If we get a 404, it might mean no shifts exist yet for this schedule
+            if (shiftsResponse.status === 404) {
+              console.log(
+                "No shifts found for this schedule yet (404 response)"
+              );
+              const weekId = getWeekIdentifier(currentWeekStart);
+              setWeeklySchedules((prev) => ({
+                ...prev,
+                [weekId]: {},
+              }));
+            }
           }
         } catch (shiftError) {
           console.error("Error fetching shifts:", shiftError);
@@ -1210,6 +1329,13 @@ function ScheduleApp() {
       } else {
         console.log("No schedule found for the selected week");
         setCurrentScheduleId(null);
+
+        // If we don't have a schedule yet for this week, create an empty schedule object
+        const weekId = getWeekIdentifier(currentWeekStart);
+        setWeeklySchedules((prev) => ({
+          ...prev,
+          [weekId]: {},
+        }));
       }
     } catch (error) {
       console.error("Error fetching schedule:", error);
@@ -1229,7 +1355,7 @@ function ScheduleApp() {
     console.log(`Processing ${shifts.length} shifts`, shifts);
 
     // Log the date format from API for debugging
-    if (shifts.length > 0) {
+    if (shifts.length > 0 && DEBUG_TIMEZONE) {
       console.log("First shift from API:", shifts[0]);
       console.log("Start time type:", typeof shifts[0].startTime);
       console.log("Start time value:", shifts[0].startTime);
@@ -1241,16 +1367,18 @@ function ScheduleApp() {
     }
 
     // Log employee IDs for debugging
-    console.log(
-      "Available employee IDs:",
-      employees.map((emp) => emp.id)
-    );
+    if (DEBUG_TIMEZONE) {
+      console.log(
+        "Available employee IDs:",
+        employees.map((emp) => emp.id)
+      );
 
-    // Log shift employee IDs for debugging
-    console.log(
-      "Shift employee IDs:",
-      shifts.map((shift) => shift.employeeId)
-    );
+      // Log shift employee IDs for debugging
+      console.log(
+        "Shift employee IDs:",
+        shifts.map((shift) => shift.employeeId)
+      );
+    }
 
     // Create map of employee IDs for faster lookup
     const employeeMap = {};
@@ -1261,7 +1389,9 @@ function ScheduleApp() {
       }
     });
 
-    console.log("Employee ID lookup map:", employeeMap);
+    if (DEBUG_TIMEZONE) {
+      console.log("Employee ID lookup map:", employeeMap);
+    }
 
     // Gather all unique employee IDs from shifts to add missing employees at once
     const missingEmployeeIds = new Set();
@@ -1269,10 +1399,12 @@ function ScheduleApp() {
     // First, identify all missing employee IDs
     shifts.forEach((shift) => {
       const employeeId = shift.employeeId;
-      console.log(
-        `Checking if employee ID '${employeeId}' exists in our employee list`
-      );
-      console.log("employeeMap:", employeeMap);
+      if (DEBUG_TIMEZONE) {
+        console.log(
+          `Checking if employee ID '${employeeId}' exists in our employee list`
+        );
+      }
+
       // Use the map for faster lookup
       if (!employeeMap[employeeId]) {
         console.log(
@@ -1289,7 +1421,7 @@ function ScheduleApp() {
       // Create all the missing employee placeholders at once
       const missingEmployees = Array.from(missingEmployeeIds).map((id) => ({
         id: id,
-        name: `Employee ${id}`,
+        name: `Employee ${id}`, // Use a more user-friendly name for missing employees
         hourlyRate: "$0.00",
         hours: "0h",
         role: "Employee",
@@ -1321,75 +1453,53 @@ function ScheduleApp() {
       const employeeId = String(shift.employeeId);
 
       // Make sure the date strings are properly parsed
-      console.log(
-        "Processing shift with dates:",
-        shift.startTime,
-        shift.endTime
-      );
+      if (DEBUG_TIMEZONE) {
+        console.log(
+          "Processing shift with dates:",
+          shift.startTime,
+          shift.endTime
+        );
+      }
 
       let startTime, endTime;
 
-      // Handle different date formats
+      // Parse start and end times using the parseTimestamp function
       try {
-        // Check if startTime is an array (the API format)
-        if (Array.isArray(shift.startTime)) {
-          console.log("Parsing startTime array:", shift.startTime);
-          // Array format is [year, month, day, hour, minute]
-          // Note: JS months are 0-indexed, so we subtract 1 from the month
-          const [year, month, day, hour, minute] = shift.startTime;
-          startTime = new Date(year, month - 1, day, hour, minute);
-        } else if (typeof shift.startTime === "string") {
-          console.log("Parsing startTime string:", shift.startTime);
-          startTime = new Date(shift.startTime);
-        } else if (shift.startTime instanceof Date) {
-          startTime = shift.startTime;
-        } else {
-          console.error("Invalid startTime format:", shift.startTime);
-          startTime = new Date(); // Fallback to current time
+        // Use the enhanced parseTimestamp function to handle various timestamp formats
+        startTime = parseTimestamp(shift.startTime);
+        endTime = parseTimestamp(shift.endTime);
+
+        if (DEBUG_TIMEZONE) {
+          console.log(
+            "Parsed dates:",
+            "startTime:",
+            startTime ? startTime.toISOString() : "Invalid date",
+            "endTime:",
+            endTime ? endTime.toISOString() : "Invalid date"
+          );
         }
-
-        // Check if endTime is an array (the API format)
-        if (Array.isArray(shift.endTime)) {
-          console.log("Parsing endTime array:", shift.endTime);
-          // Array format is [year, month, day, hour, minute]
-          // Note: JS months are 0-indexed, so we subtract 1 from the month
-          const [year, month, day, hour, minute] = shift.endTime;
-          endTime = new Date(year, month - 1, day, hour, minute);
-        } else if (typeof shift.endTime === "string") {
-          endTime = new Date(shift.endTime);
-        } else if (shift.endTime instanceof Date) {
-          endTime = shift.endTime;
-        } else {
-          console.error("Invalid endTime format:", shift.endTime);
-          endTime = new Date(); // Fallback to current time
-        }
-
-        console.log(
-          "Parsed dates:",
-          "startTime:",
-          startTime.toISOString(),
-          "endTime:",
-          endTime.toISOString(),
-          "startTime valid:",
-          !isNaN(startTime.getTime()),
-          "endTime valid:",
-          !isNaN(endTime.getTime())
-        );
-
-        // Additional format debugging
-        console.log("Date components:", {
-          startYear: startTime.getFullYear(),
-          startMonth: startTime.getMonth() + 1, // +1 for human-readable month
-          startDay: startTime.getDate(),
-          startDayOfWeek: startTime.getDay(),
-          startHours: startTime.getHours(),
-          startMinutes: startTime.getMinutes(),
-        });
 
         // Skip shifts with invalid dates
-        if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+        if (
+          !startTime ||
+          !endTime ||
+          isNaN(startTime.getTime()) ||
+          isNaN(endTime.getTime())
+        ) {
           console.error("Invalid date detected, skipping shift:", shift);
           return; // Skip this shift
+        }
+
+        // Additional format debugging
+        if (DEBUG_TIMEZONE) {
+          console.log("Date components:", {
+            startYear: startTime.getFullYear(),
+            startMonth: startTime.getMonth() + 1, // +1 for human-readable month
+            startDay: startTime.getDate(),
+            startDayOfWeek: startTime.getDay(),
+            startHours: startTime.getHours(),
+            startMinutes: startTime.getMinutes(),
+          });
         }
       } catch (e) {
         console.error("Error parsing shift dates:", e, shift);
@@ -1399,9 +1509,11 @@ function ScheduleApp() {
       // Calculate the day of week (0-6) based on the start time
       const weekStartDay = new Date(currentWeekStart);
 
-      console.log("Calculating day for shift:", shift.id);
-      console.log("Shift date:", startTime.toDateString());
-      console.log("Week start day:", weekStartDay.toDateString());
+      if (DEBUG_TIMEZONE) {
+        console.log("Calculating day for shift:", shift.id);
+        console.log("Shift date:", startTime.toDateString());
+        console.log("Week start day:", weekStartDay.toDateString());
+      }
 
       // Get the day of the week (0 = Sunday, 1 = Monday, etc.)
       const shiftDayOfWeek = startTime.getDay();
@@ -1409,22 +1521,24 @@ function ScheduleApp() {
       // Convert from Sunday=0 to Monday=0 (our app uses Monday as first day)
       const adjustedDay = shiftDayOfWeek === 0 ? 6 : shiftDayOfWeek - 1;
 
-      const dayNames = [
-        "Sunday",
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-      ];
+      if (DEBUG_TIMEZONE) {
+        const dayNames = [
+          "Sunday",
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+        ];
 
-      console.log(`Day calculation results:
-        - Day of week: ${shiftDayOfWeek} (${dayNames[shiftDayOfWeek]})
-        - Adjusted to Monday-first format: ${adjustedDay} (${
-        adjustedDay === 6 ? "Sunday" : dayNames[adjustedDay + 1]
-      })
-      `);
+        console.log(`Day calculation results:
+          - Day of week: ${shiftDayOfWeek} (${dayNames[shiftDayOfWeek]})
+          - Adjusted to Monday-first format: ${adjustedDay} (${
+          adjustedDay === 6 ? "Sunday" : dayNames[adjustedDay + 1]
+        })
+        `);
+      }
 
       // Final day value (0 = Monday, 6 = Sunday)
       const day = adjustedDay;
@@ -1435,7 +1549,9 @@ function ScheduleApp() {
         return; // Skip this shift
       }
 
-      console.log(`Final day value for shift: ${day}`);
+      if (DEBUG_TIMEZONE) {
+        console.log(`Final day value for shift: ${day}`);
+      }
 
       // Format times for display
       const formattedStartTime = formatTime(startTime);
@@ -1464,7 +1580,9 @@ function ScheduleApp() {
         business: shift.businessName || "Business",
       };
 
-      console.log(`Created processed shift for day ${day}:`, processedShift);
+      if (DEBUG_TIMEZONE) {
+        console.log(`Created processed shift for day ${day}:`, processedShift);
+      }
 
       // Add to processed shifts
       if (!processedShifts[employeeId]) {
@@ -1479,13 +1597,15 @@ function ScheduleApp() {
     // Update the weekly schedules
     const weekId = getWeekIdentifier(currentWeekStart);
 
-    console.log("---CRITICAL DEBUG---");
-    console.log(
-      "Before state update - current weeklySchedules:",
-      weeklySchedules
-    );
-    console.log("Processed shifts to add:", processedShifts);
-    console.log("Week ID being used:", weekId);
+    if (DEBUG_TIMEZONE) {
+      console.log("---CRITICAL DEBUG---");
+      console.log(
+        "Before state update - current weeklySchedules:",
+        weeklySchedules
+      );
+      console.log("Processed shifts to add:", processedShifts);
+      console.log("Week ID being used:", weekId);
+    }
 
     // Create a new object with the updated data to ensure React detects the change
     const updatedWeeklySchedules = {
@@ -1493,22 +1613,26 @@ function ScheduleApp() {
       [weekId]: processedShifts,
     };
 
-    console.log("New state that will be set:", updatedWeeklySchedules);
+    if (DEBUG_TIMEZONE) {
+      console.log("New state that will be set:", updatedWeeklySchedules);
+    }
 
     setWeeklySchedules(updatedWeeklySchedules);
 
     // Force a console log after the state should be updated
-    setTimeout(() => {
-      console.log(
-        "AFTER STATE UPDATE - Current weeklySchedules:",
-        weeklySchedules
-      );
-      console.log(
-        "Current shifts from getCurrentWeekShifts():",
-        getCurrentWeekShifts()
-      );
-      console.log("---END CRITICAL DEBUG---");
-    }, 100);
+    if (DEBUG_TIMEZONE) {
+      setTimeout(() => {
+        console.log(
+          "AFTER STATE UPDATE - Current weeklySchedules:",
+          weeklySchedules
+        );
+        console.log(
+          "Current shifts from getCurrentWeekShifts():",
+          getCurrentWeekShifts()
+        );
+        console.log("---END CRITICAL DEBUG---");
+      }, 100);
+    }
 
     // Update stats
     updateStats(processedShifts);
@@ -1547,7 +1671,10 @@ function ScheduleApp() {
       return newSchedules;
     });
 
-    // Fetch the schedule (and then shifts) for the current week
+    // First fetch availabilities
+    fetchAvailabilities(currentWeekStart);
+
+    // Then fetch the schedule (and then shifts) for the current week
     fetchScheduleForWeek(currentWeekStart);
   }, [currentWeekStart]);
 
@@ -1584,25 +1711,41 @@ function ScheduleApp() {
     // Reset time to start of day
     dayDate.setHours(0, 0, 0, 0);
 
-    console.log(
-      `Checking availabilities for day ${day}, date: ${dayDate.toISOString()}`
-    );
+    if (DEBUG_TIMEZONE) {
+      console.log(
+        `Checking availabilities for employee ${employeeId} on day ${day}, date: ${dayDate.toDateString()}`
+      );
+    }
 
     const availabilities = employeeAvailabilities[employeeId].filter(
       (availability) => {
+        // Get the date from availability's start time, ignoring time part
         const availabilityDate = new Date(availability.startTime);
         availabilityDate.setHours(0, 0, 0, 0);
 
+        // Compare just the dates (ignoring time)
         const match = availabilityDate.getTime() === dayDate.getTime();
-        console.log(
-          `Availability date: ${availabilityDate.toISOString()}, match: ${match}`
-        );
+
+        if (DEBUG_TIMEZONE && match) {
+          console.log(
+            `Found availability match: ${availabilityDate.toDateString()} (${formatTime(
+              availability.startTime
+            )}-${formatTime(availability.endTime)})`
+          );
+        }
 
         return match;
       }
     );
 
-    console.log(`Found ${availabilities.length} availabilities for day ${day}`);
+    if (DEBUG_TIMEZONE) {
+      console.log(
+        `Found ${
+          availabilities.length
+        } availabilities for day ${day} (${dayDate.toDateString()})`
+      );
+    }
+
     return availabilities;
   };
 
@@ -1620,11 +1763,16 @@ function ScheduleApp() {
           <div className="absolute top-0 right-0 z-10 flex flex-wrap gap-0.5 max-w-[90%]">
             {availabilities.map((availability, index) => {
               // Format start and end times
-              const startTime = new Date(availability.startTime);
-              const endTime = new Date(availability.endTime);
+              const startTime = availability.startTime;
+              const endTime = availability.endTime;
 
               // Skip invalid dates
-              if (isNaN(startTime) || isNaN(endTime)) {
+              if (
+                !startTime ||
+                !endTime ||
+                isNaN(startTime) ||
+                isNaN(endTime)
+              ) {
                 console.error("Invalid date in availability:", availability);
                 return null;
               }
@@ -1932,14 +2080,22 @@ function ScheduleApp() {
                     {/* Employee Info */}
                     <div className="p-1 lg:p-2 border-r flex items-center w-16 md:w-20 lg:w-32 min-w-[4rem] md:min-w-[5rem] lg:min-w-[8rem] sticky left-0 bg-white z-10">
                       <div className="bg-gray-200 rounded-full h-5 w-5 md:h-6 md:w-6 lg:h-8 lg:w-8 flex items-center justify-center mr-1 text-[9px] sm:text-xs lg:text-sm shrink-0">
-                        {employee.id?.substring(0, 2)?.toUpperCase() || "EE"}
+                        {employee.name
+                          ?.split(" ")
+                          .map((part) => part[0])
+                          .join("")
+                          .substring(0, 2)
+                          .toUpperCase() || "EE"}
                       </div>
                       <div className="truncate">
                         <div className="font-medium truncate text-[10px] sm:text-xs">
                           {employee.name || "Unknown Employee"}
                         </div>
                         <div className="text-[8px] sm:text-[10px] text-gray-500 hidden sm:block">
-                          {employee.hours} • {employee.hourlyRate}
+                          <span className="capitalize">
+                            {employee.role?.toLowerCase() || "Staff"}
+                          </span>{" "}
+                          • {employee.hours}
                         </div>
                       </div>
                     </div>
