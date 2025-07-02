@@ -7,16 +7,30 @@ import {
   BarChart2,
   Plus,
   Edit2,
+  Save,
+  Edit,
   Trash2,
   Users,
   MapPin,
   Briefcase,
   Layout,
-  Save,
+  Clock,
+  AlertCircle,
+  CheckCircle,
+  Building2,
+  Loader2,
+  FileText,
+  Download,
 } from "lucide-react";
 import "./index.css";
 import { useAuth } from "./auth/AuthContext";
 import { API_ENDPOINTS_CONFIG, USER_BASE_URL } from "./config/api";
+
+// Import jsPDF and autoTable
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 
 // Timezone information for debugging
 const DEBUG_TIMEZONE = true; // Set to true to see timezone debugging logs
@@ -1988,12 +2002,6 @@ function ScheduleApp() {
     // Reset time to start of day
     dayDate.setHours(0, 0, 0, 0);
 
-    if (DEBUG_TIMEZONE) {
-      console.log(
-        `Checking availabilities for employee ${employeeId} on day ${day}, date: ${dayDate.toDateString()}`
-      );
-    }
-
     const availabilities = employeeAvailabilities[employeeId].filter(
       (availability) => {
         // Get the date from availability's start time, ignoring time part
@@ -2002,31 +2010,12 @@ function ScheduleApp() {
 
         // Compare just the dates (ignoring time)
         const match = availabilityDate.getTime() === dayDate.getTime();
-
-        if (DEBUG_TIMEZONE && match) {
-          console.log(
-            `Found availability match: ${availabilityDate.toDateString()} (${formatTime(
-              availability.startTime
-            )}-${formatTime(availability.endTime)})`
-          );
-        }
-
         return match;
       }
     );
 
-    if (DEBUG_TIMEZONE) {
-      console.log(
-        `Found ${
-          availabilities.length
-        } availabilities for day ${day} (${dayDate.toDateString()})`
-      );
-    }
-
     return availabilities;
   };
-
-  // Using the formatTime function defined above for availability display
 
   // Render a shift cell with availabilities
   const renderShiftCell = (employeeId, day) => {
@@ -2187,6 +2176,147 @@ function ScheduleApp() {
     return employeesToDisplay;
   };
 
+  // Export functions
+  const exportToPDF = () => {
+    const doc = new jsPDF("l", "mm", "a4"); // landscape orientation
+    const weekRange = formatDateRange();
+    const businessUnit = user?.businessUnitName || "Restaurant";
+
+    // Add title
+    doc.setFontSize(16);
+    doc.text(`${businessUnit} - Weekly Schedule`, 20, 20);
+    doc.setFontSize(12);
+    doc.text(`Week of ${weekRange}`, 20, 30);
+
+    // Prepare data for the table
+    const employeesToDisplay = getEmployeesToDisplayForWeek();
+    const daysOfWeek = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+    const columnDates = getColumnDates();
+
+    // Create headers
+    const headers = ["Employee"];
+    daysOfWeek.forEach((day, index) => {
+      headers.push(`${day} ${columnDates[index]}`);
+    });
+
+    // Create rows
+    const rows = [];
+    employeesToDisplay.forEach((employee) => {
+      const row = [employee.name];
+
+      for (let day = 0; day < 7; day++) {
+        const shift = getShiftForDay(employee.id, day);
+        if (shift) {
+          row.push(
+            `${shift.startTime}-${shift.endTime}\n${shift.position}\n${shift.duration}`
+          );
+        } else {
+          row.push("-");
+        }
+      }
+      rows.push(row);
+    });
+
+    // Add table
+    autoTable(doc, {
+      head: [headers],
+      body: rows,
+      startY: 40,
+      styles: {
+        fontSize: 8,
+        cellPadding: 2,
+      },
+      headStyles: {
+        fillColor: [66, 139, 202],
+        textColor: 255,
+        fontSize: 9,
+      },
+      columnStyles: {
+        0: { cellWidth: 35 }, // Employee name column
+      },
+      didParseCell: function (data) {
+        // Add colors based on position
+        if (data.section === "body" && data.column.index > 0) {
+          const cellText = data.cell.text.join("\n");
+          if (cellText.includes("Waiter")) {
+            data.cell.styles.fillColor = [173, 216, 230]; // Light blue
+          } else if (cellText.includes("Bartender")) {
+            data.cell.styles.fillColor = [221, 160, 221]; // Light purple
+          } else if (cellText.includes("Cleaner")) {
+            data.cell.styles.fillColor = [144, 238, 144]; // Light green
+          }
+        }
+      },
+    });
+
+    // Save the PDF
+    doc.save(`${businessUnit}_Schedule_${weekRange.replace(/\s+/g, "_")}.pdf`);
+  };
+
+  const exportToExcel = () => {
+    const weekRange = formatDateRange();
+    const businessUnit = user?.businessUnitName || "Restaurant";
+
+    // Prepare data for Excel
+    const employeesToDisplay = getEmployeesToDisplayForWeek();
+    const daysOfWeek = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+    const columnDates = getColumnDates();
+
+    // Create headers
+    const headers = ["Employee"];
+    daysOfWeek.forEach((day, index) => {
+      headers.push(`${day} ${columnDates[index]}`);
+    });
+
+    // Create data array
+    const data = [headers];
+
+    employeesToDisplay.forEach((employee) => {
+      const row = [employee.name];
+
+      for (let day = 0; day < 7; day++) {
+        const shift = getShiftForDay(employee.id, day);
+        if (shift) {
+          row.push(
+            `${shift.startTime}-${shift.endTime} | ${shift.position} | ${shift.duration}`
+          );
+        } else {
+          row.push("-");
+        }
+      }
+      data.push(row);
+    });
+
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(data);
+
+    // Set column widths
+    const colWidths = [
+      { wch: 20 }, // Employee name
+      { wch: 25 }, // Monday
+      { wch: 25 }, // Tuesday
+      { wch: 25 }, // Wednesday
+      { wch: 25 }, // Thursday
+      { wch: 25 }, // Friday
+      { wch: 25 }, // Saturday
+      { wch: 25 }, // Sunday
+    ];
+    ws["!cols"] = colWidths;
+
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, "Weekly Schedule");
+
+    // Save the file
+    const fileName = `${businessUnit}_Schedule_${weekRange.replace(
+      /\s+/g,
+      "_"
+    )}.xlsx`;
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([wbout], { type: "application/octet-stream" });
+    saveAs(blob, fileName);
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -2250,6 +2380,26 @@ function ScheduleApp() {
           >
             Today
           </button>
+
+          {/* Export buttons */}
+          <div className="flex items-center space-x-1 lg:space-x-2">
+            <button
+              className="px-2 lg:px-3 py-1 bg-red-500 text-white rounded flex items-center text-xs lg:text-sm hover:bg-red-600 transition-colors"
+              onClick={exportToPDF}
+              title="Export schedule as PDF"
+            >
+              <FileText size={14} className="mr-1" />
+              PDF
+            </button>
+            <button
+              className="px-2 lg:px-3 py-1 bg-green-500 text-white rounded flex items-center text-xs lg:text-sm hover:bg-green-600 transition-colors"
+              onClick={exportToExcel}
+              title="Export schedule as Excel"
+            >
+              <Download size={14} className="mr-1" />
+              Excel
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center space-x-2 lg:space-x-4 w-full lg:w-auto">
@@ -2271,7 +2421,7 @@ function ScheduleApp() {
               onClick={publishSchedule}
               disabled={isSaving}
             >
-              <Edit2 size={16} className="mr-1" />
+              <Edit size={16} className="mr-1" />
               {isSaving ? "Publishing..." : "Publish Schedule"}
             </button>
           )}
@@ -2282,7 +2432,7 @@ function ScheduleApp() {
               onClick={editPublishedSchedule}
               disabled={isSaving}
             >
-              <Edit2 size={16} className="mr-1" />
+              <Edit size={16} className="mr-1" />
               {isSaving ? "Processing..." : "Edit Schedule"}
             </button>
           )}

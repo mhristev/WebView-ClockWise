@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from "react";
-import { NavLink, useNavigate, Outlet, useLocation } from "react-router-dom";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import {
   Calendar,
-  UserCircle,
+  User,
   Building2,
-  Menu,
-  LogOut,
-  X,
   Users,
+  Settings,
+  LogOut,
+  Menu,
+  X,
+  CalendarDays,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 
 // This component serves as the main layout with persistent sidebar
-const Layout = () => {
+const Layout = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -50,6 +52,47 @@ const Layout = () => {
     group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors duration-200`;
   };
 
+  // Define navigation items
+  const navigationItems = [
+    {
+      name: "Weekly Schedule",
+      path: "/schedule",
+      icon: Calendar,
+    },
+    {
+      name: "User Profile",
+      path: "/profile",
+      icon: User,
+    },
+    {
+      name: "Business Unit",
+      path: "/business-unit",
+      icon: Building2,
+    },
+    {
+      name: "Team Management",
+      path: "/team-management",
+      icon: Users,
+    },
+    // Admin-only menu items
+    ...(user?.role === "ADMIN"
+      ? [
+          {
+            name: "User Management",
+            path: "/admin/users",
+            icon: Settings,
+            adminOnly: true,
+          },
+          {
+            name: "Business Unit Schedules",
+            path: "/admin/business-unit-schedules",
+            icon: CalendarDays,
+            adminOnly: true,
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div className="h-screen flex overflow-hidden bg-gray-100">
       {/* Mobile menu button */}
@@ -71,38 +114,17 @@ const Layout = () => {
             </div>
             <div className="mt-8 flex-grow flex flex-col">
               <nav className="flex-1 px-4 space-y-2">
-                <NavLink
-                  to="/schedule"
-                  className={getLinkStyles}
-                  onClick={() => handleNavLinkClick("/schedule")}
-                >
-                  <Calendar className="mr-3 h-5 w-5 text-gray-400" />
-                  Weekly Schedule
-                </NavLink>
-                <NavLink
-                  to="/profile"
-                  className={getLinkStyles}
-                  onClick={() => handleNavLinkClick("/profile")}
-                >
-                  <UserCircle className="mr-3 h-5 w-5 text-gray-400" />
-                  User Profile
-                </NavLink>
-                <NavLink
-                  to="/business-unit"
-                  className={getLinkStyles}
-                  onClick={() => handleNavLinkClick("/business-unit")}
-                >
-                  <Building2 className="mr-3 h-5 w-5 text-gray-400" />
-                  Business Unit
-                </NavLink>
-                <NavLink
-                  to="/team-management"
-                  className={getLinkStyles}
-                  onClick={() => handleNavLinkClick("/team-management")}
-                >
-                  <Users className="mr-3 h-5 w-5 text-gray-400" />
-                  Team Management
-                </NavLink>
+                {navigationItems.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    className={getLinkStyles}
+                    onClick={() => handleNavLinkClick(item.path)}
+                  >
+                    <item.icon className="mr-3 h-5 w-5 text-gray-400" />
+                    {item.name}
+                  </NavLink>
+                ))}
               </nav>
             </div>
 
@@ -158,78 +180,27 @@ const Layout = () => {
                 </h1>
               </div>
               <nav className="mt-5 px-2 space-y-1">
-                <NavLink
-                  to="/schedule"
-                  className={({ isActive }) =>
-                    `${
-                      isActive
-                        ? "bg-gray-100 text-gray-900"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                    } group flex items-center px-2 py-2 text-base font-medium rounded-md`
-                  }
-                  onClick={() => {
-                    console.log("Mobile Weekly Schedule clicked");
-                    handleNavLinkClick("/schedule");
-                    toggleMobileMenu();
-                  }}
-                >
-                  <Calendar className="mr-4 h-5 w-5 text-gray-400" />
-                  Weekly Schedule
-                </NavLink>
-                <NavLink
-                  to="/profile"
-                  className={({ isActive }) =>
-                    `${
-                      isActive
-                        ? "bg-gray-100 text-gray-900"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                    } group flex items-center px-2 py-2 text-base font-medium rounded-md`
-                  }
-                  onClick={() => {
-                    console.log("Mobile User Profile clicked");
-                    handleNavLinkClick("/profile");
-                    toggleMobileMenu();
-                  }}
-                >
-                  <UserCircle className="mr-4 h-5 w-5 text-gray-400" />
-                  User Profile
-                </NavLink>
-                <NavLink
-                  to="/business-unit"
-                  className={({ isActive }) =>
-                    `${
-                      isActive
-                        ? "bg-gray-100 text-gray-900"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                    } group flex items-center px-2 py-2 text-base font-medium rounded-md`
-                  }
-                  onClick={() => {
-                    console.log("Mobile Business Unit clicked");
-                    handleNavLinkClick("/business-unit");
-                    toggleMobileMenu();
-                  }}
-                >
-                  <Building2 className="mr-4 h-5 w-5 text-gray-400" />
-                  Business Unit
-                </NavLink>
-                <NavLink
-                  to="/team-management"
-                  className={({ isActive }) =>
-                    `${
-                      isActive
-                        ? "bg-gray-100 text-gray-900"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                    } group flex items-center px-2 py-2 text-base font-medium rounded-md`
-                  }
-                  onClick={() => {
-                    console.log("Mobile Team Management clicked");
-                    handleNavLinkClick("/team-management");
-                    toggleMobileMenu();
-                  }}
-                >
-                  <Users className="mr-4 h-5 w-5 text-gray-400" />
-                  Team Management
-                </NavLink>
+                {navigationItems.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    className={({ isActive }) =>
+                      `${
+                        isActive
+                          ? "bg-gray-100 text-gray-900"
+                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                      } group flex items-center px-2 py-2 text-base font-medium rounded-md`
+                    }
+                    onClick={() => {
+                      console.log(`Mobile ${item.name} clicked`);
+                      handleNavLinkClick(item.path);
+                      toggleMobileMenu();
+                    }}
+                  >
+                    <item.icon className="mr-4 h-5 w-5 text-gray-400" />
+                    {item.name}
+                  </NavLink>
+                ))}
               </nav>
             </div>
 
@@ -267,8 +238,8 @@ const Layout = () => {
         <main className="flex-1 relative overflow-y-auto focus:outline-none p-2 lg:p-6">
           {/* Add top padding for mobile to account for the hamburger menu */}
           <div className="pt-12 lg:pt-0">
-            {/* Use Outlet to render child routes */}
-            <Outlet />
+            {/* Render children instead of Outlet */}
+            {children}
           </div>
         </main>
       </div>
