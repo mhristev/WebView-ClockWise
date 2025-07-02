@@ -136,6 +136,18 @@ const LoginPage = () => {
               )}
             </button>
           </div>
+
+          {/* Password Reset Link */}
+          <div className="text-center">
+            <a
+              href="http://localhost:8080/realms/clockwise/login-actions/reset-credentials?client_id=auth-service"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-blue-600 hover:text-blue-500 underline"
+            >
+              Forgot your password?
+            </a>
+          </div>
         </form>
 
         {/* Development Test Credentials */}

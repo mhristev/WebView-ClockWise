@@ -174,7 +174,6 @@ const TeamManagementPage = () => {
           body: JSON.stringify({
             businessUnitId: user.businessUnitId,
             businessUnitName: user.businessUnitName,
-            role: "EMPLOYEE", // Always use EMPLOYEE as default role
           }),
         }
       );
@@ -185,7 +184,7 @@ const TeamManagementPage = () => {
       }
 
       setSuccessMessage(
-        `Successfully added ${selectedUserToAdd.firstName} ${selectedUserToAdd.lastName} to the team as an Employee!`
+        `Successfully added ${selectedUserToAdd.firstName} ${selectedUserToAdd.lastName} to the team!`
       );
       setShowAddModal(false);
       setSelectedUserToAdd(null);
