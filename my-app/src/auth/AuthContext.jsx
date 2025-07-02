@@ -1,10 +1,11 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
+import { API_ENDPOINTS_CONFIG } from "../config/api";
 
 const AuthContext = createContext();
 
 export const useAuth = () => useContext(AuthContext);
 
-// Define authorized roles
+// Define authorized roles - only ADMIN and MANAGER
 const AUTHORIZED_ROLES = ["ADMIN", "MANAGER"];
 
 export const AuthProvider = ({ children }) => {
@@ -18,19 +19,19 @@ export const AuthProvider = ({ children }) => {
   const [authError, setAuthError] = useState(null);
 
   // Check if user role is authorized
-  const checkAuthorization = (userObj) => {
-    if (!userObj || !userObj.role) {
+  const checkAuthorization = (role) => {
+    if (!role) {
       setIsAuthorized(false);
       setAuthError("User has no assigned role");
       return false;
     }
 
-    const hasAuthorizedRole = AUTHORIZED_ROLES.includes(userObj.role);
+    const hasAuthorizedRole = AUTHORIZED_ROLES.includes(role);
     setIsAuthorized(hasAuthorizedRole);
 
     if (!hasAuthorizedRole) {
       setAuthError(
-        `Access denied. Your role (${userObj.role}) does not have permission to access this application.`
+        `Access denied. Your role (${role}) does not have permission to access this application. Only Managers and Admins are allowed.`
       );
     } else {
       setAuthError(null);
@@ -58,15 +59,24 @@ export const AuthProvider = ({ children }) => {
             setIsAuthenticated(true);
 
             // Check if user has authorized role
-            checkAuthorization(user);
+            checkAuthorization(user?.role);
           } else {
-            // Token expired, clear data
-            logout();
+            // Token expired, clear auth data
+            localStorage.removeItem("authData");
+            setIsAuthenticated(false);
+            setIsAuthorized(false);
           }
         } catch (error) {
           console.error("Error parsing auth data:", error);
-          logout();
+          // Clear invalid auth data
+          localStorage.removeItem("authData");
+          setIsAuthenticated(false);
+          setIsAuthorized(false);
         }
+      } else {
+        // No auth data found, user needs to log in
+        setIsAuthenticated(false);
+        setIsAuthorized(false);
       }
 
       setIsLoading(false);
@@ -77,7 +87,10 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await fetch("http://localhost:8081/v1/auth/login", {
+      setAuthError(null);
+
+      // Call the actual login API
+      const response = await fetch(API_ENDPOINTS_CONFIG.login(), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -86,38 +99,73 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (!response.ok) {
-        throw new Error("Login failed");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Login failed");
       }
 
-      const data = await response.json();
+      const authData = await response.json();
+
+      // Validate response structure - now expecting role directly in response
+      if (!authData.accessToken || !authData.role) {
+        throw new Error("Invalid response from server");
+      }
 
       // Check if user has authorized role
-      if (!checkAuthorization(data.user)) {
+      if (!checkAuthorization(authData.role)) {
         throw new Error(
-          `Access denied. Your role (${data.user.role}) does not have permission to access this application.`
+          `Access denied. Your role (${authData.role}) does not have permission to access this application. Only Managers and Admins are allowed.`
         );
       }
 
-      // Calculate token expiration time
-      const expiresAt = new Date(new Date().getTime() + data.expiresIn * 1000);
+      // Fetch full user information from User Service
+      const userResponse = await fetch(API_ENDPOINTS_CONFIG.me(), {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${authData.accessToken}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      let userObj;
+      if (!userResponse.ok) {
+        console.warn(
+          "Failed to fetch user details from User Service, using basic info"
+        );
+        // Fall back to basic user object if User Service is unavailable
+        userObj = {
+          email: email,
+          role: authData.role,
+        };
+      } else {
+        const userData = await userResponse.json();
+        // Use full user data from User Service but ensure role comes from auth response
+        userObj = {
+          ...userData,
+          role: authData.role, // Always use role from auth service
+        };
+      }
+
+      // Calculate token expiration time (default to 1 hour if not provided)
+      const expiresIn = authData.expiresIn || 3600; // 1 hour default
+      const expiresAt = new Date(new Date().getTime() + expiresIn * 1000);
 
       // Store auth data
-      const authData = {
-        user: data.user,
-        token: data.token,
-        refreshToken: data.refreshToken,
+      const authDataToStore = {
+        user: userObj,
+        token: authData.accessToken,
+        refreshToken: authData.refreshToken,
         expiresAt: expiresAt.toISOString(),
       };
 
-      localStorage.setItem("authData", JSON.stringify(authData));
+      localStorage.setItem("authData", JSON.stringify(authDataToStore));
 
-      setUser(data.user);
-      setToken(data.token);
-      setRefreshToken(data.refreshToken);
+      setUser(userObj);
+      setToken(authData.accessToken);
+      setRefreshToken(authData.refreshToken);
       setTokenExpiresAt(expiresAt);
       setIsAuthenticated(true);
 
-      return data;
+      return authData;
     } catch (error) {
       console.error("Login error:", error);
       setAuthError(error.message);
@@ -138,6 +186,7 @@ export const AuthProvider = ({ children }) => {
 
   const getAuthHeaders = () => {
     if (!token) return {};
+
     return {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
@@ -156,13 +205,13 @@ export const AuthProvider = ({ children }) => {
     return user.businessUnitId;
   };
 
-  // Get business unit details (placeholder - will be replaced with API call)
+  // Get business unit details
   const getBusinessUnitDetails = async () => {
     if (!token || !user || !user.businessUnitId) return null;
 
     try {
       const response = await fetch(
-        `http://localhost:8081/v1/business-units/${user.businessUnitId}`,
+        API_ENDPOINTS_CONFIG.businessUnit(user.businessUnitId),
         {
           headers: getAuthHeaders(),
         }

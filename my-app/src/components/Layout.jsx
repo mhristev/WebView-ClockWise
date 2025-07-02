@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { NavLink, useNavigate, Outlet, useLocation } from "react-router-dom";
-import { Calendar, UserCircle, Building2, Menu, LogOut, X } from "lucide-react";
+import {
+  Calendar,
+  UserCircle,
+  Building2,
+  Menu,
+  LogOut,
+  X,
+  Users,
+} from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 
 // This component serves as the main layout with persistent sidebar
@@ -86,6 +94,14 @@ const Layout = () => {
                 >
                   <Building2 className="mr-3 h-5 w-5 text-gray-400" />
                   Business Unit
+                </NavLink>
+                <NavLink
+                  to="/team-management"
+                  className={getLinkStyles}
+                  onClick={() => handleNavLinkClick("/team-management")}
+                >
+                  <Users className="mr-3 h-5 w-5 text-gray-400" />
+                  Team Management
                 </NavLink>
               </nav>
             </div>
@@ -195,6 +211,24 @@ const Layout = () => {
                 >
                   <Building2 className="mr-4 h-5 w-5 text-gray-400" />
                   Business Unit
+                </NavLink>
+                <NavLink
+                  to="/team-management"
+                  className={({ isActive }) =>
+                    `${
+                      isActive
+                        ? "bg-gray-100 text-gray-900"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                    } group flex items-center px-2 py-2 text-base font-medium rounded-md`
+                  }
+                  onClick={() => {
+                    console.log("Mobile Team Management clicked");
+                    handleNavLinkClick("/team-management");
+                    toggleMobileMenu();
+                  }}
+                >
+                  <Users className="mr-4 h-5 w-5 text-gray-400" />
+                  Team Management
                 </NavLink>
               </nav>
             </div>

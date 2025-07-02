@@ -16,9 +16,7 @@ import {
 } from "lucide-react";
 import "./index.css";
 import { useAuth } from "./auth/AuthContext";
-
-// Define API base URL - use a hardcoded fallback for development
-const API_BASE_URL = "http://localhost:8888/v1";
+import { API_ENDPOINTS_CONFIG, USER_BASE_URL } from "./config/api";
 
 // Timezone information for debugging
 const DEBUG_TIMEZONE = true; // Set to true to see timezone debugging logs
@@ -145,32 +143,40 @@ const createShiftRequest = (
   }
   endDate.setHours(parseInt(endHour), parseInt(endMin), 0, 0);
 
-  // Get epoch seconds which are timezone-neutral
-  const startTimestamp = Math.floor(startDate.getTime() / 1000);
-  const endTimestamp = Math.floor(endDate.getTime() / 1000);
+  // Convert to ISO strings for ZonedDateTime format
+  const startTimeISO = startDate.toISOString();
+  const endTimeISO = endDate.toISOString();
 
   console.log(
-    `Creating shift with times: Start=${startTimeStr} → ${startTimestamp}, End=${endTimeStr} → ${endTimestamp}, Position=${position}`
+    `Creating shift with times: Start=${startTimeStr} → ${startTimeISO}, End=${endTimeStr} → ${endTimeISO}, Position=${position}`
   );
 
   // Log ISO strings for debugging
   console.log("ISO strings:", {
-    startDateISO: startDate.toISOString(),
-    endDateISO: endDate.toISOString(),
+    startDateISO: startTimeISO,
+    endDateISO: endTimeISO,
   });
 
   return {
     scheduleId,
     employeeId,
-    startTime: startTimestamp,
-    endTime: endTimestamp,
+    startTime: startTimeISO,
+    endTime: endTimeISO,
     position: position,
+    businessUnitId: null, // Let the backend handle this
   };
 };
 
 function ScheduleApp() {
-  // Get auth context
-  const { user, getAuthHeaders, getRestaurantId, logout } = useAuth();
+  // Extract auth context
+  const { user, getAuthHeaders, getRestaurantId } = useAuth();
+
+  // Helper function to get the token directly
+  const getAuthToken = () => {
+    const headers = getAuthHeaders();
+    const authHeader = headers.Authorization;
+    return authHeader ? authHeader.replace("Bearer ", "") : null;
+  };
 
   // Debug component mounting
   useEffect(() => {
@@ -217,13 +223,13 @@ function ScheduleApp() {
     totalShifts: 0,
   });
 
-  const positions = ["Server", "Cook", "Host"];
+  const positions = ["Waiter", "Bartender", "Cleaner"];
 
   // Position colors
   const positionColors = {
-    Server: "bg-blue-100 border-blue-300",
-    Cook: "bg-yellow-100 border-yellow-300",
-    Host: "bg-red-100 border-red-300",
+    Waiter: "bg-blue-100 border-blue-300",
+    Bartender: "bg-purple-100 border-purple-300",
+    Cleaner: "bg-green-100 border-green-300",
   };
 
   const daysOfWeek = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
@@ -232,7 +238,10 @@ function ScheduleApp() {
   function getMonday(date) {
     const day = date.getDay();
     const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-    return new Date(date.setDate(diff));
+    const monday = new Date(date);
+    monday.setDate(diff);
+    monday.setHours(0, 0, 0, 0); // Reset to start of day
+    return monday;
   }
 
   // Get unique week identifier
@@ -246,84 +255,150 @@ function ScheduleApp() {
 
   // Fetch employees from the API
   const fetchEmployees = async () => {
-    setIsLoading(true);
+    const businessUnitId = getRestaurantId();
+    const fetchStartTime = new Date().toISOString();
+    console.log("🔥 [WEEKLY SCHEDULE] Starting user fetch process");
+    console.log("📅 Fetch initiated at:", fetchStartTime);
+    console.log("🏢 Fetching employees for business unit:", businessUnitId);
+    console.log("👤 Current user making request:", user?.email || "Unknown");
+
     try {
-      // Using the endpoint to get users for a specific business unit
-      const restaurantId = getRestaurantId();
-      const response = await fetch(
-        `http://localhost:8081/v1/users/restaurant/${restaurantId}`,
-        { headers: getAuthHeaders() }
+      const token = getAuthToken();
+      if (!token) {
+        console.error("❌ [WEEKLY SCHEDULE] No auth token available");
+        setError("Authentication required. Please log in again.");
+        return;
+      }
+
+      console.log(
+        "🔑 [WEEKLY SCHEDULE] Auth token available, proceeding with request"
       );
-      console.log("User response", response);
+
+      const requestUrl = `${USER_BASE_URL}/users/business-unit/${businessUnitId}`;
+      console.log("🌐 [WEEKLY SCHEDULE] Making API request to:", requestUrl);
+
+      const response = await fetch(requestUrl, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const fetchEndTime = new Date().toISOString();
+      console.log(
+        "⏱️ [WEEKLY SCHEDULE] API response received at:",
+        fetchEndTime
+      );
+      console.log("📊 [WEEKLY SCHEDULE] Response status:", response.status);
+
+      if (response.status === 401) {
+        console.error(
+          "🔐 [WEEKLY SCHEDULE] Unauthorized access - token may be expired"
+        );
+        setError("Session expired. Please log in again.");
+        return;
+      }
+
       if (!response.ok) {
-        if (response.status === 401) {
-          // Handle unauthorized - token might be expired
-          logout();
-          throw new Error("Session expired. Please login again.");
-        }
-        throw new Error(`Error: ${response.status}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log("Employee data from API:", data);
+      console.log("📦 [WEEKLY SCHEDULE] Raw employee data received:", data);
+      console.log(
+        "📈 [WEEKLY SCHEDULE] Data type:",
+        Array.isArray(data) ? "Array" : typeof data
+      );
 
-      // Transform the user data to match our employee structure
-      const formattedEmployees = data.map((user) => ({
-        id: String(user.id), // Ensure ID is a string for consistent comparisons
-        name:
-          `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
-          user.username ||
-          "Unknown", // Format as firstName lastName, fallback to username
-        email: user.email,
-        hourlyRate: "$0.00", // Default value, could be fetched from another endpoint
-        hours: "0h", // Default value, will be calculated based on shifts
-        role: user.role,
-        businessUnitId: user.businessUnitId,
-        businessUnitName: user.businessUnitName,
-      }));
+      // Handle the response based on the actual API structure
+      let employeeList = [];
+      if (Array.isArray(data)) {
+        employeeList = data;
+        console.log("✅ [WEEKLY SCHEDULE] Data is direct array format");
+      } else if (data.users && Array.isArray(data.users)) {
+        employeeList = data.users;
+        console.log("✅ [WEEKLY SCHEDULE] Data extracted from .users property");
+      } else if (data.content && Array.isArray(data.content)) {
+        employeeList = data.content;
+        console.log(
+          "✅ [WEEKLY SCHEDULE] Data extracted from .content property"
+        );
+      }
 
-      console.log("Formatted employees:", formattedEmployees);
+      console.log(
+        "📋 [WEEKLY SCHEDULE] Extracted employee list count:",
+        employeeList.length
+      );
+      console.log("📋 [WEEKLY SCHEDULE] Employee list details:", employeeList);
 
-      // Check for duplicate IDs before setting state
-      const uniqueEmployees = [];
-      const employeeIds = new Set();
+      // Format employees for the schedule UI
+      const formattedEmployees = employeeList.map((emp, index) => {
+        // Check if this employee is the current user
+        const isCurrentUser = user && emp.id === user.id;
 
-      formattedEmployees.forEach((emp) => {
-        if (!employeeIds.has(emp.id)) {
-          employeeIds.add(emp.id);
-          uniqueEmployees.push(emp);
-        } else {
-          console.warn(
-            `Duplicate employee ID detected: ${emp.id}. Skipping duplicate.`
-          );
-        }
+        console.log(`👤 [WEEKLY SCHEDULE] Processing employee ${index + 1}:`, {
+          id: emp.id,
+          name: `${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
+          role: emp.role,
+          isCurrentUser,
+          originalRoleData: emp.role, // Log the original role data
+        });
+
+        return {
+          id: emp.id || emp.userId || `emp-${Math.random()}`,
+          name:
+            `${emp.firstName || ""} ${emp.lastName || ""}`.trim() ||
+            emp.username ||
+            "Unknown Employee",
+          role: emp.role || "Staff",
+          hours: emp.workingHours || "40h/week",
+          businessUnitName: emp.businessUnitName || "Restaurant",
+          isCurrentUser: isCurrentUser,
+          isGhost: false, // Initially fetched employees are current, not ghost
+        };
       });
 
-      console.log("Unique employees to set:", uniqueEmployees);
-      setEmployees(uniqueEmployees);
-      setIsLoading(false);
-    } catch (err) {
-      console.error("Failed to fetch employees:", err);
-      setError(err.message);
-      setIsLoading(false);
+      // Remove duplicates based on ID
+      const uniqueEmployees = formattedEmployees.filter(
+        (emp, index, self) => index === self.findIndex((e) => e.id === emp.id)
+      );
 
-      // Fallback to sample data if API fails
-      const sampleEmployees = [
-        {
-          id: "AT",
-          name: "Ahsoka Tano",
-          hourlyRate: "$330.00",
-          hours: "16h 30min",
-        },
-        { id: "AS", name: "Arya Stark", hourlyRate: "$0.00", hours: "11h" },
-        {
-          id: "DT",
-          name: "Danny Targeryen",
-          hourlyRate: "$0.00",
-          hours: "11h",
-        },
-      ];
-      setEmployees(sampleEmployees);
+      console.log(
+        "🔄 [WEEKLY SCHEDULE] Formatted employees count:",
+        formattedEmployees.length
+      );
+      console.log(
+        "✨ [WEEKLY SCHEDULE] Unique employees count after deduplication:",
+        uniqueEmployees.length
+      );
+      console.log("✨ [WEEKLY SCHEDULE] Final employee list:", uniqueEmployees);
+
+      const processingEndTime = new Date().toISOString();
+      console.log(
+        "⏱️ [WEEKLY SCHEDULE] Employee processing completed at:",
+        processingEndTime
+      );
+      console.log(
+        "🎉 [WEEKLY SCHEDULE] User fetch process completed successfully!"
+      );
+
+      setEmployees(uniqueEmployees);
+    } catch (error) {
+      const errorTime = new Date().toISOString();
+      console.error("💥 [WEEKLY SCHEDULE] Error occurred at:", errorTime);
+      console.error("💥 [WEEKLY SCHEDULE] Error fetching employees:", error);
+      console.error("💥 [WEEKLY SCHEDULE] Error details:", {
+        message: error.message,
+        stack: error.stack,
+        businessUnitId,
+        userEmail: user?.email,
+      });
+
+      // Instead of falling back to sample data, set empty array
+      // This will trigger the "No employees found" message in the UI
+      setEmployees([]);
+      setError(`Failed to load employees: ${error.message}`);
     }
   };
 
@@ -359,7 +434,11 @@ function ScheduleApp() {
 
       // Fetch availabilities for the week
       const response = await fetch(
-        `${API_BASE_URL}/business-units/${businessUnitId}/availabilities?startDate=${startDateStr}&endDate=${endDateStr}`,
+        API_ENDPOINTS_CONFIG.availabilities(
+          businessUnitId,
+          startDateStr,
+          endDateStr
+        ),
         { headers: getAuthHeaders() }
       );
 
@@ -439,24 +518,28 @@ function ScheduleApp() {
 
     setIsSaving(true);
     try {
-      const restaurantId = getRestaurantId();
+      const businessUnitId = getRestaurantId();
 
       // Format the current week start date properly
       const weekStart = new Date(currentWeekStart);
 
-      // Format the date consistently for API - use full ISO string
-      const dateString = weekStart.toISOString();
+      // Format the date for API - use LocalDate format (YYYY-MM-DD)
+      // Use a timezone-safe method to avoid date shifting
+      const year = weekStart.getFullYear();
+      const month = String(weekStart.getMonth() + 1).padStart(2, "0");
+      const day = String(weekStart.getDate()).padStart(2, "0");
+      const dateString = `${year}-${month}-${day}`;
       console.log(`Creating schedule for week: ${dateString}`);
 
       // Create schedule first
-      const scheduleResponse = await fetch(`${API_BASE_URL}/schedules`, {
+      const scheduleResponse = await fetch(API_ENDPOINTS_CONFIG.schedules(), {
         method: "POST",
         headers: {
           ...getAuthHeaders(),
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          restaurantId,
+          businessUnitId,
           weekStart: dateString,
           status: "DRAFT",
         }),
@@ -491,7 +574,7 @@ function ScheduleApp() {
           shift.position
         );
 
-        const savePromise = fetch(`${API_BASE_URL}/shifts`, {
+        const savePromise = fetch(API_ENDPOINTS_CONFIG.shifts(), {
           method: "POST",
           headers: {
             ...getAuthHeaders(),
@@ -555,7 +638,7 @@ function ScheduleApp() {
 
       // Call the revert to draft endpoint with auth headers
       const response = await fetch(
-        `${API_BASE_URL}/schedules/${currentScheduleId}/draft`,
+        API_ENDPOINTS_CONFIG.scheduleDraft(currentScheduleId),
         {
           method: "POST",
           headers: {
@@ -602,7 +685,7 @@ function ScheduleApp() {
 
       // Call the publish endpoint with auth headers
       const response = await fetch(
-        `${API_BASE_URL}/schedules/${currentScheduleId}/publish`,
+        API_ENDPOINTS_CONFIG.schedulePublish(currentScheduleId),
         {
           method: "POST",
           headers: {
@@ -635,7 +718,7 @@ function ScheduleApp() {
 
   // Load employees on component mount
   useEffect(() => {
-    fetchEmployees();
+    // fetchEmployees(); // Commented out - duplicate call, already handled in component init
   }, []);
 
   // Initialize sample shifts data for current week only if not loaded from backend
@@ -653,7 +736,7 @@ function ScheduleApp() {
       console.log(`Fetching shifts for schedule ID: ${currentScheduleId}`);
 
       // Fetch shifts from the backend API
-      fetch(`${API_BASE_URL}/schedules/${currentScheduleId}/shifts`)
+      fetch(API_ENDPOINTS_CONFIG.scheduleShifts(currentScheduleId))
         .then((response) => {
           if (response.ok) {
             return response.json();
@@ -674,6 +757,7 @@ function ScheduleApp() {
           } else {
             console.log("No shifts found for this schedule");
             // Set empty shifts for this week
+            const weekId = getWeekIdentifier(currentWeekStart);
             setWeeklySchedules((prev) => ({
               ...prev,
               [weekId]: {},
@@ -791,7 +875,7 @@ function ScheduleApp() {
         startTime: "08:00",
         endTime: "14:00",
         duration: "6h",
-        position: "Server",
+        position: positions[0],
         business:
           employees.find((emp) => emp.id === employeeId)?.businessUnitName ||
           "Test Business",
@@ -861,20 +945,25 @@ function ScheduleApp() {
         const weekStart = new Date(currentWeekStart);
         weekStart.setHours(0, 0, 0, 0);
 
-        // Format the date consistently for API
-        const dateString = weekStart.toISOString();
+        // Format the date for API - use LocalDate format (YYYY-MM-DD)
+        // Use a timezone-safe method to avoid date shifting
+        const year = weekStart.getFullYear();
+        const month = String(weekStart.getMonth() + 1).padStart(2, "0");
+        const day = String(weekStart.getDate()).padStart(2, "0");
+        const dateString = `${year}-${month}-${day}`;
 
         // Create schedule request
         const scheduleRequest = {
-          restaurantId: getRestaurantId(),
+          businessUnitId: getRestaurantId(),
           weekStart: dateString,
         };
 
         // Save the schedule first
-        const scheduleResponse = await fetch(`${API_BASE_URL}/schedules`, {
+        const scheduleResponse = await fetch(API_ENDPOINTS_CONFIG.schedules(), {
           method: "POST",
           headers: {
             ...getAuthHeaders(),
+            "Content-Type": "application/json",
           },
           body: JSON.stringify(scheduleRequest),
         });
@@ -909,8 +998,8 @@ function ScheduleApp() {
       // Save the shift to the backend with auth headers
       const endpoint =
         existingShiftIndex >= 0 && currentShift.backendId
-          ? `${API_BASE_URL}/shifts/${currentShift.backendId}`
-          : `${API_BASE_URL}/shifts`;
+          ? API_ENDPOINTS_CONFIG.shiftById(currentShift.backendId)
+          : API_ENDPOINTS_CONFIG.shifts();
 
       const method =
         existingShiftIndex >= 0 && currentShift.backendId ? "PUT" : "POST";
@@ -987,7 +1076,7 @@ function ScheduleApp() {
           `Deleting shift with backend ID ${shiftToDelete.backendId}`
         );
         const response = await fetch(
-          `${API_BASE_URL}/shifts/${shiftToDelete.backendId}`,
+          API_ENDPOINTS_CONFIG.shiftById(shiftToDelete.backendId),
           {
             method: "DELETE",
             headers: getAuthHeaders(),
@@ -1217,6 +1306,149 @@ function ScheduleApp() {
     return shiftElement;
   };
 
+  // Function to validate and clean up employees who are no longer in the business unit
+  const validateAndCleanupEmployees = async (shiftsForWeek = []) => {
+    console.log(
+      "[WEEKLY SCHEDULE] 🧹 Starting employee validation and cleanup..."
+    );
+
+    try {
+      const businessUnitId = getRestaurantId();
+      console.log(
+        `[WEEKLY SCHEDULE] 🔍 Validating employees for business unit: ${businessUnitId}`
+      );
+
+      // Get current employees in our state
+      const currentEmployees = [...employees];
+      console.log(
+        `[WEEKLY SCHEDULE] 📋 Current employees in state: ${currentEmployees.length}`
+      );
+
+      // Get employees who have shifts for this week
+      const employeesWithShifts = new Set(
+        shiftsForWeek.map((shift) => String(shift.employeeId))
+      );
+      console.log(
+        `[WEEKLY SCHEDULE] 📅 Employees with shifts this week: ${Array.from(
+          employeesWithShifts
+        ).join(", ")}`
+      );
+
+      // Fetch fresh employee data from the business unit
+      console.log(
+        `[WEEKLY SCHEDULE] 🔄 Fetching fresh employee data from business unit...`
+      );
+      const response = await fetch(
+        API_ENDPOINTS_CONFIG.restaurantUsers(businessUnitId),
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+
+      if (!response.ok) {
+        console.warn(
+          `[WEEKLY SCHEDULE] ⚠️ Failed to fetch fresh employee data: ${response.status}`
+        );
+        return; // Skip validation if we can't fetch data
+      }
+
+      const freshEmployeeData = await response.json();
+      console.log(
+        `[WEEKLY SCHEDULE] ✅ Fetched ${freshEmployeeData.length} employees from business unit`
+      );
+
+      // Create a map of valid employee IDs (still in the business unit)
+      const validEmployeeIds = new Set(
+        freshEmployeeData.map((emp) => String(emp.id))
+      );
+      console.log(
+        `[WEEKLY SCHEDULE] 🎯 Valid employee IDs: ${Array.from(
+          validEmployeeIds
+        ).join(", ")}`
+      );
+
+      // Update existing employees: mark those no longer in business unit as "ghost"
+      const updatedEmployees = currentEmployees.map((emp) => {
+        const empId = String(emp.id);
+        const isValidEmployee = validEmployeeIds.has(empId);
+        const hasShiftsThisWeek = employeesWithShifts.has(empId);
+
+        if (!isValidEmployee && hasShiftsThisWeek) {
+          console.log(
+            `[WEEKLY SCHEDULE] 👻 Marking employee ${emp.name} (ID: ${empId}) as ghost - removed from business unit but has shifts`
+          );
+          return {
+            ...emp,
+            isGhost: true, // Mark as ghost - removed from business unit but has shifts
+          };
+        } else if (isValidEmployee) {
+          console.log(
+            `[WEEKLY SCHEDULE] ✅ Employee ${emp.name} (ID: ${empId}) is still valid - marking as current`
+          );
+          return {
+            ...emp,
+            isGhost: false, // Mark as current employee
+          };
+        } else {
+          // Employee is no longer valid and has no shifts - will be filtered out by display logic
+          console.log(
+            `[WEEKLY SCHEDULE] 🗑️ Employee ${emp.name} (ID: ${empId}) - no longer in business unit and no shifts (will be hidden)`
+          );
+          return {
+            ...emp,
+            isGhost: true, // Still mark as ghost for consistency
+          };
+        }
+      });
+
+      // Add any new employees from the fresh data that we don't have yet
+      const currentEmployeeIds = new Set(
+        updatedEmployees.map((emp) => String(emp.id))
+      );
+      const newEmployees = freshEmployeeData.filter(
+        (emp) => !currentEmployeeIds.has(String(emp.id))
+      );
+
+      if (newEmployees.length > 0) {
+        console.log(
+          `[WEEKLY SCHEDULE] ➕ Adding ${newEmployees.length} new employees to the list`
+        );
+
+        // Format new employees properly
+        const formattedNewEmployees = newEmployees.map((emp) => {
+          // Check if this employee is the current user
+          const isCurrentUser = user && emp.id === user.id;
+
+          return {
+            id: emp.id || emp.userId || `emp-${Math.random()}`,
+            name:
+              `${emp.firstName || ""} ${emp.lastName || ""}`.trim() ||
+              emp.username ||
+              "Unknown Employee",
+            role: emp.role || "Staff",
+            hours: emp.workingHours || "40h/week",
+            businessUnitName: emp.businessUnitName || "Restaurant",
+            isCurrentUser: isCurrentUser,
+            isGhost: false, // New employees are current, not ghost
+          };
+        });
+
+        // Update the employees list with both updated existing and new employees
+        setEmployees([...updatedEmployees, ...formattedNewEmployees]);
+      } else {
+        // Just update existing employees if no new ones
+        setEmployees(updatedEmployees);
+      }
+
+      console.log(`[WEEKLY SCHEDULE] 🔄 Employee validation completed`);
+    } catch (error) {
+      console.error(
+        "[WEEKLY SCHEDULE] ❌ Error during employee validation:",
+        error
+      );
+    }
+  };
+
   // Fetch schedule for the specified week
   const fetchScheduleForWeek = async (weekStart) => {
     try {
@@ -1240,34 +1472,85 @@ function ScheduleApp() {
       setCurrentScheduleId(null);
 
       // Use the endpoint to fetch a schedule for this specific week
-      const restaurantId = getRestaurantId();
-      console.log(`Fetching schedule for restaurant ID: ${restaurantId}`);
+      const businessUnitId = getRestaurantId();
+      console.log(`Fetching schedule for business unit ID: ${businessUnitId}`);
 
-      // Format the weekStart date as ISO string for the API parameter
-      const weekStartISO = formattedWeekStart.toISOString();
+      // Format the weekStart date as LocalDate string for the API parameter
+      // Use a timezone-safe method to avoid date shifting
+      const year = formattedWeekStart.getFullYear();
+      const month = String(formattedWeekStart.getMonth() + 1).padStart(2, "0");
+      const day = String(formattedWeekStart.getDate()).padStart(2, "0");
+      const weekStartLocalDate = `${year}-${month}-${day}`;
 
-      console.log(`Using date string for API request: ${weekStartISO}`);
+      console.log(`Using date string for API request: ${weekStartLocalDate}`);
 
-      // Use the correct endpoint format matching the backend implementation
-      // GET /restaurants/{id}/schedules/week?weekStart=<dateTime>
-      const response = await fetch(
-        `${API_BASE_URL}/restaurants/${restaurantId}/schedules/week?weekStart=${weekStartISO}`,
-        { headers: getAuthHeaders() }
+      // Log the complete API call details
+      const apiUrl = API_ENDPOINTS_CONFIG.restaurantSchedulesWeekWithShifts(
+        businessUnitId,
+        weekStartLocalDate
       );
+      console.log("🔥 API CALL DETAILS:");
+      console.log(`- URL: ${apiUrl}`);
+      console.log(`- Business Unit ID: ${businessUnitId}`);
+      console.log(`- Week Start: ${weekStartLocalDate}`);
+      console.log(`- Headers:`, getAuthHeaders());
 
-      console.log(`Schedule API response status: ${response.status}`);
+      // Use the new endpoint that returns schedule with shifts
+      // GET /business-units/{id}/schedules/week?weekStart=<localDate>
+      const response = await fetch(apiUrl, { headers: getAuthHeaders() });
+
+      console.log("🔥 API RESPONSE DETAILS:");
+      console.log(`- Status: ${response.status} ${response.statusText}`);
+      console.log(`- Headers:`, Object.fromEntries(response.headers.entries()));
+      console.log(`- OK: ${response.ok}`);
 
       if (!response.ok) {
-        console.warn(`No schedule found for week: ${response.status}`);
+        console.warn(`❌ No schedule found for week: ${response.status}`);
+
+        // Try to read the error response body
+        try {
+          const errorText = await response.text();
+          console.warn(`❌ Error response body:`, errorText);
+        } catch (e) {
+          console.warn(`❌ Could not read error response body:`, e);
+        }
+
         setCurrentScheduleId(null);
         setIsLoading(false);
         return;
       }
 
-      const data = await response.json();
-      console.log("Schedule API response:", data);
+      // Log the raw response text first
+      const responseText = await response.text();
+      console.log("🔥 RAW RESPONSE TEXT:");
+      console.log(responseText);
 
-      // Handle the schedule response
+      // Parse the JSON
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log("🔥 PARSED JSON DATA:");
+        console.log(JSON.stringify(data, null, 2));
+      } catch (parseError) {
+        console.error("❌ Failed to parse JSON response:", parseError);
+        console.error("❌ Raw response that failed to parse:", responseText);
+        setCurrentScheduleId(null);
+        setIsLoading(false);
+        return;
+      }
+
+      console.log("🔥 DATA STRUCTURE ANALYSIS:");
+      console.log(`- Type: ${typeof data}`);
+      console.log(`- Is Array: ${Array.isArray(data)}`);
+      console.log(`- Keys:`, data ? Object.keys(data) : "null/undefined");
+      console.log(`- Has ID: ${data?.id ? "YES" : "NO"}`);
+      console.log(`- Has shifts: ${data?.shifts ? "YES" : "NO"}`);
+      if (data?.shifts) {
+        console.log(`- Shifts count: ${data.shifts.length}`);
+        console.log(`- First shift:`, data.shifts[0]);
+      }
+
+      // Handle the schedule response with shifts
       if (data && data.id) {
         console.log(`Found schedule with ID: ${data.id}`);
         const scheduleId = data.id;
@@ -1281,50 +1564,27 @@ function ScheduleApp() {
           }`
         );
 
-        // Immediately fetch shifts for this schedule
-        console.log(`Fetching shifts for schedule ID: ${scheduleId}`);
-        try {
-          const shiftsResponse = await fetch(
-            `${API_BASE_URL}/schedules/${scheduleId}/shifts`,
-            { headers: getAuthHeaders() }
+        // Process the shifts that came with the schedule
+        if (data.shifts && data.shifts.length > 0) {
+          console.log(
+            `Processing ${data.shifts.length} shifts included in schedule response:`,
+            data.shifts
           );
+          await processShifts(data.shifts);
 
-          if (shiftsResponse.ok) {
-            const shifts = await shiftsResponse.json();
-            console.log(
-              `Fetched ${shifts.length} shifts for schedule ID ${scheduleId}:`,
-              shifts
-            );
+          // Validate and cleanup employees after processing shifts
+          await validateAndCleanupEmployees(data.shifts);
+        } else {
+          console.log("No shifts found in the schedule response");
+          // Set empty shifts for this week if none were found
+          const weekId = getWeekIdentifier(currentWeekStart);
+          setWeeklySchedules((prev) => ({
+            ...prev,
+            [weekId]: {},
+          }));
 
-            if (shifts && shifts.length > 0) {
-              await processShifts(shifts);
-            } else {
-              // Set empty shifts for this week if none were found
-              const weekId = getWeekIdentifier(currentWeekStart);
-              setWeeklySchedules((prev) => ({
-                ...prev,
-                [weekId]: {},
-              }));
-            }
-          } else {
-            console.error(
-              `Failed to fetch shifts: ${shiftsResponse.status} - ${shiftsResponse.statusText}`
-            );
-
-            // If we get a 404, it might mean no shifts exist yet for this schedule
-            if (shiftsResponse.status === 404) {
-              console.log(
-                "No shifts found for this schedule yet (404 response)"
-              );
-              const weekId = getWeekIdentifier(currentWeekStart);
-              setWeeklySchedules((prev) => ({
-                ...prev,
-                [weekId]: {},
-              }));
-            }
-          }
-        } catch (shiftError) {
-          console.error("Error fetching shifts:", shiftError);
+          // Validate employees even when there are no shifts (cleanup removed employees)
+          await validateAndCleanupEmployees([]);
         }
       } else {
         console.log("No schedule found for the selected week");
@@ -1336,6 +1596,9 @@ function ScheduleApp() {
           ...prev,
           [weekId]: {},
         }));
+
+        // Validate employees even when there's no schedule (cleanup removed employees)
+        await validateAndCleanupEmployees([]);
       }
     } catch (error) {
       console.error("Error fetching schedule:", error);
@@ -1421,12 +1684,18 @@ function ScheduleApp() {
       // Create all the missing employee placeholders at once
       const missingEmployees = Array.from(missingEmployeeIds).map((id) => ({
         id: id,
-        name: `Employee ${id}`, // Use a more user-friendly name for missing employees
+        name: `Former Employee ${id}`, // More descriptive name for ghost employees
         hourlyRate: "$0.00",
         hours: "0h",
-        role: "Employee",
-        businessUnitName: "Unknown Business",
+        role: "Former Employee",
+        businessUnitName: "No longer in business unit",
+        isGhost: true, // Missing employees are ghost - not in current business unit but have shifts
       }));
+
+      console.log(
+        `[WEEKLY SCHEDULE] 👻 Creating ${missingEmployees.length} ghost employees:`,
+        missingEmployees.map((emp) => `${emp.name} (ID: ${emp.id})`).join(", ")
+      );
 
       // Update state once with all missing employees
       setEmployees((prev) => {
@@ -1700,6 +1969,14 @@ function ScheduleApp() {
     fetchAvailabilities(currentWeekStart);
   }, [currentWeekStart]);
 
+  // Fetch schedule with employee validation when week changes
+  useEffect(() => {
+    console.log(
+      `[WEEK NAVIGATION] Week changed to: ${currentWeekStart.toDateString()}`
+    );
+    fetchScheduleForWeek(currentWeekStart);
+  }, [currentWeekStart]);
+
   // Get availability for a specific employee on a specific day
   const getAvailabilitiesForDay = (employeeId, day) => {
     if (!employeeAvailabilities[employeeId]) return [];
@@ -1834,6 +2111,82 @@ function ScheduleApp() {
     );
   };
 
+  // Function to get employees to display for the current week
+  const getEmployeesToDisplayForWeek = () => {
+    console.log(
+      "[WEEKLY SCHEDULE] 🎯 Determining employees to display for current week..."
+    );
+
+    // Get shifts for the current week
+    const currentWeekShifts = getCurrentWeekShifts();
+    const employeesWithShifts = new Set();
+
+    // Collect all employee IDs that have shifts this week
+    Object.keys(currentWeekShifts).forEach((employeeId) => {
+      if (
+        currentWeekShifts[employeeId] &&
+        currentWeekShifts[employeeId].length > 0
+      ) {
+        employeesWithShifts.add(String(employeeId));
+      }
+    });
+
+    console.log(
+      `[WEEKLY SCHEDULE] 📅 Employees with shifts this week: ${Array.from(
+        employeesWithShifts
+      ).join(", ")}`
+    );
+
+    // Separate current and ghost employees for better visibility
+    const currentEmployees = employees.filter((emp) => !emp.isGhost);
+    const ghostEmployees = employees.filter((emp) => emp.isGhost);
+
+    console.log(
+      `[WEEKLY SCHEDULE] 👥 Current employees: ${currentEmployees.length}, Ghost employees: ${ghostEmployees.length}`
+    );
+
+    // Filter employees to show:
+    // 1. Employees who have shifts this week, OR
+    // 2. Employees who are currently active in the business unit (fetched employees are the "truth")
+    const employeesToDisplay = employees.filter((employee) => {
+      const empId = String(employee.id);
+      const hasShiftsThisWeek = employeesWithShifts.has(empId);
+
+      // For the "truth" check, we need to verify if this employee was fetched
+      // If they're in our employees array and don't have a "ghost" marker, they're current
+      const isCurrentEmployee = !employee.isGhost; // We'll mark removed employees as "ghost"
+
+      const shouldDisplay = hasShiftsThisWeek || isCurrentEmployee;
+
+      if (shouldDisplay) {
+        const statusMsg = employee.isGhost
+          ? `👻 Ghost employee (has shifts but removed from business unit)`
+          : `✅ Current employee`;
+        console.log(
+          `[WEEKLY SCHEDULE] ${statusMsg} - ${employee.name} (ID: ${empId}) - hasShifts: ${hasShiftsThisWeek}`
+        );
+      } else {
+        console.log(
+          `[WEEKLY SCHEDULE] ❌ Hiding employee ${employee.name} (ID: ${empId}) - no shifts and not current`
+        );
+      }
+
+      return shouldDisplay;
+    });
+
+    const displayedGhostCount = employeesToDisplay.filter(
+      (emp) => emp.isGhost
+    ).length;
+    const displayedCurrentCount = employeesToDisplay.filter(
+      (emp) => !emp.isGhost
+    ).length;
+
+    console.log(
+      `[WEEKLY SCHEDULE] 📋 Total employees to display: ${employeesToDisplay.length} out of ${employees.length} (${displayedCurrentCount} current + ${displayedGhostCount} ghost)`
+    );
+    return employeesToDisplay;
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -1963,24 +2316,28 @@ function ScheduleApp() {
           <div className="font-medium">Position Colors:</div>
           <div className="flex items-center">
             <div className="w-3 h-3 lg:w-4 lg:h-4 bg-blue-100 border border-blue-300 mr-1 rounded"></div>
-            <span>Server</span>
+            <span>Waiter</span>
           </div>
           <div className="flex items-center">
-            <div className="w-3 h-3 lg:w-4 lg:h-4 bg-yellow-100 border border-yellow-300 mr-1 rounded"></div>
-            <span>Cook</span>
+            <div className="w-3 h-3 lg:w-4 lg:h-4 bg-purple-100 border border-purple-300 mr-1 rounded"></div>
+            <span>Bartender</span>
           </div>
           <div className="flex items-center">
-            <div className="w-3 h-3 lg:w-4 lg:h-4 bg-red-100 border border-red-300 mr-1 rounded"></div>
-            <span>Host</span>
+            <div className="w-3 h-3 lg:w-4 lg:h-4 bg-green-100 border border-green-300 mr-1 rounded"></div>
+            <span>Cleaner</span>
           </div>
         </div>
         <div className="flex flex-wrap space-x-2 lg:space-x-4">
-          <div className="font-medium">Availability:</div>
+          <div className="font-medium">Employee Status:</div>
+          <div className="flex items-center">
+            <div className="w-3 h-3 lg:w-4 lg:h-4 bg-red-100 border border-red-300 mr-1 rounded"></div>
+            <span>Former employee with scheduled shifts</span>
+          </div>
           <div className="flex items-center">
             <div className="inline-block bg-green-50 border border-green-300 rounded px-1 py-0.5 text-[10px] text-green-800 mr-1">
               10:00-14:00
             </div>
-            <span>Employee submitted availability</span>
+            <span>Employee availability</span>
           </div>
         </div>
       </div>
@@ -2042,8 +2399,11 @@ function ScheduleApp() {
         <div className="min-w-full h-full">
           {/* Day Headers - Enhanced visibility */}
           <div className="grid grid-cols-8 border-b sticky top-0 bg-white z-10">
-            <div className="p-1 lg:p-2 font-medium text-gray-500 border-r w-16 md:w-20 lg:w-32 min-w-[4rem] md:min-w-[5rem] lg:min-w-[8rem]">
-              SHIFTS
+            <div className="p-1 lg:p-2 font-medium text-gray-500 border-r w-20 md:w-32 lg:w-48 min-w-[5rem] md:min-w-[8rem] lg:min-w-[12rem]">
+              <div className="text-[10px] sm:text-xs">EMPLOYEE</div>
+              <div className="text-[8px] sm:text-[10px] text-blue-600">
+                & ID
+              </div>
             </div>
             {daysOfWeek.map((day, i) => (
               <div
@@ -2065,53 +2425,106 @@ function ScheduleApp() {
             <div className="text-center p-6 lg:p-12 text-gray-500 text-base lg:text-xl">
               No schedule found for this week. Please create a schedule first.
             </div>
-          ) : employees.length === 0 ? (
+          ) : getEmployeesToDisplayForWeek().length === 0 ? (
             <div className="text-center p-4 lg:p-8 text-gray-500">
-              No employees found
+              <div className="text-lg font-medium mb-2">No employees found</div>
+              <div className="text-sm">
+                No employees have shifts this week and no current employees are
+                assigned to business unit ID: {getRestaurantId()}
+              </div>
+              <div className="text-sm mt-2 text-gray-400">
+                Please add employees to this business unit or create shifts to
+                see the schedule.
+              </div>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              {employees.map((employee) => {
-                return (
-                  <div
-                    key={employee.id}
-                    className="grid grid-cols-8 border-b hover:bg-gray-50 text-[10px] sm:text-xs lg:text-sm"
-                  >
-                    {/* Employee Info */}
-                    <div className="p-1 lg:p-2 border-r flex items-center w-16 md:w-20 lg:w-32 min-w-[4rem] md:min-w-[5rem] lg:min-w-[8rem] sticky left-0 bg-white z-10">
-                      <div className="bg-gray-200 rounded-full h-5 w-5 md:h-6 md:w-6 lg:h-8 lg:w-8 flex items-center justify-center mr-1 text-[9px] sm:text-xs lg:text-sm shrink-0">
-                        {employee.name
-                          ?.split(" ")
-                          .map((part) => part[0])
-                          .join("")
-                          .substring(0, 2)
-                          .toUpperCase() || "EE"}
-                      </div>
-                      <div className="truncate">
-                        <div className="font-medium truncate text-[10px] sm:text-xs">
-                          {employee.name || "Unknown Employee"}
-                        </div>
-                        <div className="text-[8px] sm:text-[10px] text-gray-500 hidden sm:block">
-                          <span className="capitalize">
-                            {employee.role?.toLowerCase() || "Staff"}
-                          </span>{" "}
-                          • {employee.hours}
-                        </div>
-                      </div>
-                    </div>
+              {getEmployeesToDisplayForWeek()
+                .sort((a, b) => {
+                  // Current user always comes first
+                  if (a.isCurrentUser && !b.isCurrentUser) return -1;
+                  if (!a.isCurrentUser && b.isCurrentUser) return 1;
 
-                    {/* Shifts */}
-                    {Array.from({ length: 7 }, (_, day) => (
+                  // If both are current user or both are not, sort alphabetically by name
+                  const nameA = (a.name || "Unknown Employee").toLowerCase();
+                  const nameB = (b.name || "Unknown Employee").toLowerCase();
+                  return nameA.localeCompare(nameB);
+                })
+                .map((employee) => {
+                  return (
+                    <div
+                      key={employee.id}
+                      className={`grid grid-cols-8 border-b hover:bg-gray-50 text-[10px] sm:text-xs lg:text-sm ${
+                        employee.isGhost ? "bg-red-50 opacity-75" : ""
+                      }`}
+                    >
+                      {/* Employee Info */}
                       <div
-                        key={day}
-                        className="p-1 md:p-2 border-r relative min-h-[4rem] flex-1"
+                        className={`p-1 lg:p-2 border-r flex items-center w-20 md:w-32 lg:w-48 min-w-[5rem] md:min-w-[8rem] lg:min-w-[12rem] sticky left-0 z-10 ${
+                          employee.isGhost ? "bg-red-50" : "bg-white"
+                        }`}
                       >
-                        {renderShiftCell(employee.id, day)}
+                        <div
+                          className={`rounded-full h-5 w-5 md:h-6 md:w-6 lg:h-8 lg:w-8 flex items-center justify-center mr-1 lg:mr-2 text-[9px] sm:text-xs lg:text-sm shrink-0 ${
+                            employee.isGhost ? "bg-red-200" : "bg-gray-200"
+                          }`}
+                        >
+                          {employee.name
+                            ?.split(" ")
+                            .map((part) => part[0])
+                            .join("")
+                            .substring(0, 2)
+                            .toUpperCase() || "EE"}
+                        </div>
+                        <div className="truncate">
+                          <div className="font-medium text-[10px] sm:text-xs lg:text-sm">
+                            {employee.isCurrentUser ? (
+                              <span style={{ fontWeight: "bold" }}>
+                                {employee.name || "Unknown Employee"} (me)
+                              </span>
+                            ) : (
+                              <span
+                                className={
+                                  employee.isGhost ? "text-red-600" : ""
+                                }
+                              >
+                                {employee.name || "Unknown Employee"}
+                                {employee.isGhost ? " (former)" : ""}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[8px] sm:text-[10px] lg:text-xs text-gray-500">
+                            <div className="hidden sm:block">
+                              <span className="capitalize">
+                                {employee.role
+                                  ? employee.role
+                                      .toLowerCase()
+                                      .replace(/_/g, " ")
+                                  : "staff"}
+                              </span>{" "}
+                              • {employee.hours}
+                              {employee.isGhost && (
+                                <span className="text-red-500 ml-1">
+                                  • No longer in business unit
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                );
-              })}
+
+                      {/* Shifts */}
+                      {Array.from({ length: 7 }, (_, day) => (
+                        <div
+                          key={day}
+                          className="p-1 md:p-2 border-r relative min-h-[4rem] flex-1"
+                        >
+                          {renderShiftCell(employee.id, day)}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
             </div>
           )}
         </div>
@@ -2142,11 +2555,23 @@ function ScheduleApp() {
                   })
                 }
               >
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.name}
-                  </option>
-                ))}
+                {employees
+                  .sort((a, b) => {
+                    // Current user always comes first
+                    if (a.isCurrentUser && !b.isCurrentUser) return -1;
+                    if (!a.isCurrentUser && b.isCurrentUser) return 1;
+
+                    // If both are current user or both are not, sort alphabetically by name
+                    const nameA = (a.name || "Unknown Employee").toLowerCase();
+                    const nameB = (b.name || "Unknown Employee").toLowerCase();
+                    return nameA.localeCompare(nameB);
+                  })
+                  .map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.name}
+                      {emp.isCurrentUser ? " (me)" : ""}
+                    </option>
+                  ))}
               </select>
             </div>
 

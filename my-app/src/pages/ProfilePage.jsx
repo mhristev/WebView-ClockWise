@@ -1,9 +1,45 @@
 import React from "react";
 import { useAuth } from "../auth/AuthContext";
-import { UserCircle, Mail, Shield, Building, Phone } from "lucide-react";
+import {
+  UserCircle,
+  Mail,
+  Shield,
+  Building,
+  Phone,
+  Calendar,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  Hash,
+} from "lucide-react";
 
 const ProfilePage = () => {
   const { user } = useAuth();
+
+  // Helper function to format dates
+  const formatDate = (timestamp) => {
+    if (!timestamp) return "Not available";
+    try {
+      const date = new Date(timestamp);
+      return date.toLocaleDateString() + " at " + date.toLocaleTimeString();
+    } catch {
+      return "Invalid date";
+    }
+  };
+
+  // Helper function to get status badge color
+  const getStatusColor = (status) => {
+    switch (status?.toUpperCase()) {
+      case "ACTIVE":
+        return "bg-green-100 text-green-800";
+      case "INACTIVE":
+        return "bg-red-100 text-red-800";
+      case "PENDING":
+        return "bg-yellow-100 text-yellow-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
 
   if (!user) {
     return (
@@ -28,7 +64,7 @@ const ProfilePage = () => {
                 Personal Information
               </h3>
               <p className="mt-1 max-w-2xl text-sm text-gray-500">
-                Your user profile details
+                Your complete user profile details
               </p>
             </div>
           </div>
@@ -37,23 +73,32 @@ const ProfilePage = () => {
             <dl>
               <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt className="text-sm font-medium text-gray-500 flex items-center">
-                  <UserCircle size={16} className="mr-2" /> First Name
+                  <Hash size={16} className="mr-2" /> User ID
                 </dt>
-                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                  {user.firstName}
+                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 font-mono">
+                  {user.id || "Not available"}
                 </dd>
               </div>
 
               <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt className="text-sm font-medium text-gray-500 flex items-center">
-                  <UserCircle size={16} className="mr-2" /> Last Name
+                  <UserCircle size={16} className="mr-2" /> First Name
                 </dt>
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                  {user.lastName}
+                  {user.firstName || "Not provided"}
                 </dd>
               </div>
 
               <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt className="text-sm font-medium text-gray-500 flex items-center">
+                  <UserCircle size={16} className="mr-2" /> Last Name
+                </dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  {user.lastName || "Not provided"}
+                </dd>
+              </div>
+
+              <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt className="text-sm font-medium text-gray-500 flex items-center">
                   <Mail size={16} className="mr-2" /> Email address
                 </dt>
@@ -62,7 +107,7 @@ const ProfilePage = () => {
                 </dd>
               </div>
 
-              <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt className="text-sm font-medium text-gray-500 flex items-center">
                   <Phone size={16} className="mr-2" /> Phone Number
                 </dt>
@@ -71,7 +116,7 @@ const ProfilePage = () => {
                 </dd>
               </div>
 
-              <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt className="text-sm font-medium text-gray-500 flex items-center">
                   <Shield size={16} className="mr-2" /> Role
                 </dt>
@@ -82,6 +127,8 @@ const ProfilePage = () => {
                         ? "bg-purple-100 text-purple-800"
                         : user.role === "MANAGER"
                         ? "bg-blue-100 text-blue-800"
+                        : user.role === "EMPLOYEE"
+                        ? "bg-green-100 text-green-800"
                         : "bg-gray-100 text-gray-800"
                     }`}
                   >
@@ -90,13 +137,92 @@ const ProfilePage = () => {
                 </dd>
               </div>
 
-              <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt className="text-sm font-medium text-gray-500 flex items-center">
                   <Building size={16} className="mr-2" /> Business Unit
                 </dt>
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                  {user.businessUnitName || "Not assigned"} (ID:{" "}
-                  {user.businessUnitId || "N/A"})
+                  <div>
+                    <div className="font-medium">
+                      {user.businessUnitName || "Not assigned"}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      ID: {user.businessUnitId || "N/A"}
+                    </div>
+                  </div>
+                </dd>
+              </div>
+
+              <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt className="text-sm font-medium text-gray-500 flex items-center">
+                  <AlertCircle size={16} className="mr-2" /> Account Status
+                </dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
+                      user.userStatus
+                    )}`}
+                  >
+                    {user.userStatus || "Unknown"}
+                  </span>
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+
+        {/* Account Information Section */}
+        <div className="mt-8 bg-white shadow overflow-hidden sm:rounded-lg">
+          <div className="px-4 py-5 sm:px-6">
+            <h3 className="text-lg leading-6 font-medium text-gray-900">
+              Account Information
+            </h3>
+            <p className="mt-1 max-w-2xl text-sm text-gray-500">
+              Account creation and activity details
+            </p>
+          </div>
+
+          <div className="border-t border-gray-200">
+            <dl>
+              <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt className="text-sm font-medium text-gray-500 flex items-center">
+                  <Calendar size={16} className="mr-2" /> Account Created
+                </dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  {formatDate(user.createdAt)}
+                </dd>
+              </div>
+
+              <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt className="text-sm font-medium text-gray-500 flex items-center">
+                  <Clock size={16} className="mr-2" /> Last Seen
+                </dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  {formatDate(user.lastSeenAt)}
+                </dd>
+              </div>
+
+              <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt className="text-sm font-medium text-gray-500 flex items-center">
+                  <CheckCircle size={16} className="mr-2" /> Privacy Consent
+                </dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  <div className="flex items-center space-x-2">
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        user.hasProvidedConsent
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {user.hasProvidedConsent ? "Provided" : "Not Provided"}
+                    </span>
+                    {user.consentVersion && (
+                      <span className="text-xs text-gray-500">
+                        Version: {user.consentVersion}
+                      </span>
+                    )}
+                  </div>
                 </dd>
               </div>
             </dl>

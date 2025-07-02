@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { useNavigate } from "react-router-dom";
 import {
   Building2,
   MapPin,
@@ -13,6 +14,7 @@ import {
 
 const BusinessUnitPage = () => {
   const { user, getBusinessUnitDetails } = useAuth();
+  const navigate = useNavigate();
   const [businessUnit, setBusinessUnit] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -158,10 +160,10 @@ const BusinessUnitPage = () => {
                     See roles and contact information.
                   </p>
                   <button
-                    className="inline-flex items-center text-green-600 hover:text-green-800 cursor-not-allowed"
-                    disabled
+                    onClick={() => navigate("/team-management")}
+                    className="inline-flex items-center text-green-600 hover:text-green-800 transition-colors"
                   >
-                    Coming Soon{" "}
+                    Manage Team{" "}
                     <span aria-hidden="true" className="ml-1">
                       →
                     </span>

@@ -11,6 +11,7 @@ import LoginPage from "./pages/LoginPage";
 import ScheduleApp from "./schedule-ui-component";
 import ProfilePage from "./pages/ProfilePage";
 import BusinessUnitPage from "./pages/BusinessUnitPage";
+import TeamManagementPage from "./pages/TeamManagementPage";
 import Layout from "./components/Layout";
 
 function App() {
@@ -33,10 +34,11 @@ function App() {
             <Route path="schedule" element={<ScheduleApp />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="business-unit" element={<BusinessUnitPage />} />
+            <Route path="team-management" element={<TeamManagementPage />} />
             <Route path="" element={<Navigate to="/schedule" replace />} />
           </Route>
 
-          {/* Redirect root to the login page initially */}
+          {/* Redirect any unknown routes to login */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Router>
