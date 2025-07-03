@@ -15,6 +15,7 @@ import BusinessUnitPage from "./pages/BusinessUnitPage";
 import TeamManagementPage from "./pages/TeamManagementPage";
 import AdminUserManagement from "./pages/AdminUserManagement";
 import AdminBusinessUnitSchedulePage from "./pages/AdminBusinessUnitSchedulePage";
+import AdminOrganizationManagement from "./pages/AdminOrganizationManagement";
 
 function App() {
   return (
@@ -43,6 +44,14 @@ function App() {
                       element={
                         <ProtectedRoute requiredRole="ADMIN">
                           <AdminUserManagement />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/organizations"
+                      element={
+                        <ProtectedRoute requiredRole="ADMIN">
+                          <AdminOrganizationManagement />
                         </ProtectedRoute>
                       }
                     />

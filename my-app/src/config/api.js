@@ -49,6 +49,7 @@ export const API_ENDPOINTS_CONFIG = {
   
   // Organization endpoints
   businessUnit: (businessUnitId) => `${ORGANIZATION_BASE_URL}/business-units/${businessUnitId}`,
+  companiesWithBusinessUnits: () => `${ORGANIZATION_BASE_URL}/companies/with-business-units`,
   
   // Schedule endpoints (using planning service)
   schedules: () => `${PLANNING_BASE_URL}/schedules`,

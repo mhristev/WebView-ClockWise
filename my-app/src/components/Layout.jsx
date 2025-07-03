@@ -10,6 +10,7 @@ import {
   Menu,
   X,
   CalendarDays,
+  Building,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 
@@ -81,6 +82,12 @@ const Layout = ({ children }) => {
             name: "User Management",
             path: "/admin/users",
             icon: Settings,
+            adminOnly: true,
+          },
+          {
+            name: "Organization Management",
+            path: "/admin/organizations",
+            icon: Building,
             adminOnly: true,
           },
           {
