@@ -9,9 +9,12 @@ import {
   Clock,
   FileText,
   AlertCircle,
+  Download,
 } from "lucide-react";
 import MonthlyCalendar from "../components/MonthlyCalendar";
 import DayDetailModal from "../components/DayDetailModal";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 
 const ManagerEmployeeScheduleView = () => {
   const { user, getAuthHeaders, getRestaurantId } = useAuth();
@@ -87,15 +90,20 @@ const ManagerEmployeeScheduleView = () => {
         employeeList = data.content;
       }
 
-      // Filter out the current manager from the list (managers shouldn't view their own schedule here)
-      const filteredEmployees = employeeList.filter(
-        (emp) => emp.id !== user.id
-      );
-      setEmployees(filteredEmployees);
+      // Include all employees including the current user
+      // Put the current user at the top
+      let sortedEmployees = [...employeeList];
+      if (user) {
+        sortedEmployees = [
+          ...employeeList.filter((emp) => emp.id === user.id),
+          ...employeeList.filter((emp) => emp.id !== user.id),
+        ];
+      }
+      setEmployees(sortedEmployees);
 
       // Auto-select first employee if available
-      if (filteredEmployees.length > 0) {
-        setSelectedEmployee(filteredEmployees[0].id);
+      if (sortedEmployees.length > 0) {
+        setSelectedEmployee(sortedEmployees[0].id);
       }
     } catch (error) {
       console.error("Error fetching employees:", error);
@@ -294,6 +302,198 @@ const ManagerEmployeeScheduleView = () => {
     setSelectedDayShifts([]);
   };
 
+  const exportToPDF = () => {
+    try {
+      if (!selectedEmployee || scheduleData.length === 0) {
+        setError("No schedule data to export");
+        return;
+      }
+
+      console.log("Starting PDF export...");
+
+      // Test if jsPDF is working
+      const doc = new jsPDF();
+      console.log("jsPDF instance created:", doc);
+
+      const employeeName = getSelectedEmployeeName();
+      const monthYear = getMonthName();
+      const hours = calculateTotalHours();
+
+      console.log("PDF data:", { employeeName, monthYear, hours });
+
+      // Title
+      doc.setFontSize(20);
+      doc.text("Employee Schedule Report", 14, 20);
+
+      // Employee and month info
+      doc.setFontSize(12);
+      doc.text(`Employee: ${employeeName}`, 14, 30);
+      doc.text(`Period: ${monthYear}`, 14, 37);
+      doc.text(`Total Hours: ${hours.total}h`, 14, 44);
+
+      // Prepare table data
+      const tableData = [];
+      scheduleData.forEach((week) => {
+        week.shifts.forEach((shift) => {
+          const shiftDate = parseTimestamp(shift.startTime);
+          const dayName = shiftDate.toLocaleDateString("en-US", {
+            weekday: "long",
+          });
+          const dateStr = shiftDate.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          });
+
+          const scheduledStart = parseTimestamp(
+            shift.startTime
+          ).toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          });
+
+          const scheduledEnd = parseTimestamp(shift.endTime).toLocaleTimeString(
+            "en-US",
+            {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+            }
+          );
+
+          let actualStart = "N/A";
+          let actualEnd = "N/A";
+          let actualHours = "N/A";
+
+          if (shift.workSession && shift.workSession.clockInTime) {
+            const clockIn = parseTimestamp(shift.workSession.clockInTime);
+            actualStart = clockIn.toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+            });
+
+            if (shift.workSession.clockOutTime) {
+              const clockOut = parseTimestamp(shift.workSession.clockOutTime);
+              actualEnd = clockOut.toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+              });
+
+              const workedMinutes = (clockOut - clockIn) / (1000 * 60);
+              actualHours = (workedMinutes / 60).toFixed(1) + "h";
+            }
+          }
+
+          tableData.push([
+            dayName,
+            dateStr,
+            scheduledStart,
+            scheduledEnd,
+            actualStart,
+            actualEnd,
+            actualHours,
+          ]);
+        });
+      });
+
+      console.log("Table data prepared:", tableData.length, "rows");
+
+      // Create manual table
+      const startY = 55;
+      const columnWidths = [25, 25, 25, 25, 25, 25, 20];
+      const headers = [
+        "Day",
+        "Date",
+        "Scheduled Start",
+        "Scheduled End",
+        "Actual Start",
+        "Actual End",
+        "Hours Worked",
+      ];
+      let currentY = startY;
+
+      // Draw header
+      doc.setFillColor(59, 130, 246);
+      doc.rect(14, currentY - 8, 170, 8, "F");
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8);
+      doc.setFont(undefined, "bold");
+
+      let xPos = 16;
+      headers.forEach((header, index) => {
+        doc.text(header, xPos, currentY - 2);
+        xPos += columnWidths[index];
+      });
+
+      // Reset text color and font
+      doc.setTextColor(0, 0, 0);
+      doc.setFont(undefined, "normal");
+
+      // Draw table rows
+      tableData.forEach((row, rowIndex) => {
+        currentY += 8;
+
+        // Draw row background (alternating colors)
+        if (rowIndex % 2 === 0) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(14, currentY - 8, 170, 8, "F");
+        }
+
+        // Draw cell borders
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.1);
+
+        let xPos = 14;
+        columnWidths.forEach((width) => {
+          doc.line(xPos, currentY - 8, xPos, currentY);
+          xPos += width;
+        });
+        doc.line(14, currentY - 8, 184, currentY - 8);
+        doc.line(14, currentY, 184, currentY);
+
+        // Add text
+        doc.setFontSize(7);
+        xPos = 16;
+        row.forEach((cell, cellIndex) => {
+          doc.text(cell, xPos, currentY - 2);
+          xPos += columnWidths[cellIndex];
+        });
+      });
+
+      // Draw final border
+      doc.line(14, startY, 14, currentY);
+      doc.line(184, startY, 184, currentY);
+
+      // Footer
+      doc.setFontSize(10);
+      doc.text(
+        `Generated on: ${new Date().toLocaleDateString()}`,
+        14,
+        currentY + 15
+      );
+
+      // Save PDF
+      const fileName = `${employeeName.replace(
+        /\s+/g,
+        "_"
+      )}_${monthYear.replace(/\s+/g, "_")}_Schedule.pdf`;
+
+      console.log("Saving PDF as:", fileName);
+      doc.save(fileName);
+      console.log("PDF saved successfully");
+
+      // Clear any previous errors
+      setError(null);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      setError(`Failed to generate PDF: ${error.message}`);
+    }
+  };
+
   // Access control check
   if (user && user.role !== "MANAGER" && user.role !== "ADMIN") {
     return (
@@ -337,11 +537,19 @@ const ManagerEmployeeScheduleView = () => {
               className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             >
               <option value="">Choose an employee...</option>
-              {employees.map((employee) => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.firstName} {employee.lastName} - {employee.role}
-                </option>
-              ))}
+              {employees.map((employee) => {
+                const isCurrentUser = employee.id === user?.id;
+                return (
+                  <option
+                    key={employee.id}
+                    value={employee.id}
+                    style={isCurrentUser ? { fontWeight: "bold" } : {}}
+                  >
+                    {employee.firstName} {employee.lastName}
+                    {isCurrentUser ? " (me)" : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -365,6 +573,17 @@ const ManagerEmployeeScheduleView = () => {
               <ChevronRight size={20} />
             </button>
           </div>
+
+          {/* Export Button */}
+          <button
+            onClick={exportToPDF}
+            disabled={!selectedEmployee || scheduleData.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            title="Export to PDF"
+          >
+            <Download size={16} />
+            Export PDF
+          </button>
         </div>
       </div>
 
