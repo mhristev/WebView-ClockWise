@@ -414,15 +414,21 @@ const MonthlyCalendar = ({
               key={`${weekIndex}-${dayIndex}`}
               className={`
                 min-h-[120px] p-2 border-r border-b cursor-pointer hover:bg-gray-50 transition-colors
-                ${!day.isCurrentMonth ? "bg-gray-50 text-gray-400" : ""}
-                ${day.hasShifts ? "bg-blue-50" : ""}
+                ${!day.isCurrentMonth 
+                  ? "bg-gray-200 text-gray-500 border-gray-400" 
+                  : "bg-blue-50 border-blue-300"
+                }
+                ${day.hasShifts && day.isCurrentMonth ? "bg-blue-100" : ""}
+                ${day.hasShifts && !day.isCurrentMonth ? "bg-gray-300" : ""}
               `}
               onClick={() => onDayClick && onDayClick(day.date, day.shifts)}
             >
               {/* Day Number */}
               <div
-                className={`text-sm font-medium mb-1 ${
-                  !day.isCurrentMonth ? "text-gray-400" : "text-gray-900"
+                className={`text-sm font-medium mb-1 px-2 py-1 text-center ${
+                  !day.isCurrentMonth 
+                    ? "text-gray-600" 
+                    : "text-blue-800 font-semibold"
                 }`}
               >
                 {day.date.getDate()}
