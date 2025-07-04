@@ -16,6 +16,7 @@ import TeamManagementPage from "./pages/TeamManagementPage";
 import AdminUserManagement from "./pages/AdminUserManagement";
 import AdminBusinessUnitSchedulePage from "./pages/AdminBusinessUnitSchedulePage";
 import AdminOrganizationManagement from "./pages/AdminOrganizationManagement";
+import ScheduleView from "./pages/ScheduleView";
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
                       path="/team-management"
                       element={<TeamManagementPage />}
                     />
+                    <Route path="/schedule-view" element={<ScheduleView />} />
                     <Route
                       path="/admin/users"
                       element={

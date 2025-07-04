@@ -45,7 +45,7 @@ export const API_ENDPOINTS_CONFIG = {
   
   // User endpoints
   me: () => `${USER_BASE_URL}/users/me`,
-  restaurantUsers: (restaurantId) => `${USER_BASE_URL}/users/restaurant/${restaurantId}`,
+  restaurantUsers: (restaurantId) => `${USER_BASE_URL}/users/business-unit/${restaurantId}`,
   
   // Organization endpoints
   businessUnit: (businessUnitId) => `${ORGANIZATION_BASE_URL}/business-units/${businessUnitId}`,
@@ -68,6 +68,10 @@ export const API_ENDPOINTS_CONFIG = {
   // Availability endpoints
   availabilities: (businessUnitId, startDate, endDate) => 
     `${PLANNING_BASE_URL}/business-units/${businessUnitId}/availabilities?startDate=${startDate}&endDate=${endDate}`,
+  
+  // Monthly schedule endpoint for managers
+  monthlySchedule: (businessUnitId, userId, month, year) =>
+    `${PLANNING_BASE_URL}/business-units/${businessUnitId}/users/${userId}/monthly-schedule?month=${month}&year=${year}`,
 };
 
 // Environment info for debugging
@@ -80,4 +84,4 @@ export const ENV_INFO = {
   viteEnv: import.meta.env.MODE
 };
 
-console.log('API Configuration loaded:', ENV_INFO); 
+console.log('API Configuration loaded:', ENV_INFO);

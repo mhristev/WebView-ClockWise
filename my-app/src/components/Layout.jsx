@@ -11,6 +11,7 @@ import {
   X,
   CalendarDays,
   Building,
+  ClipboardList,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 
@@ -61,6 +62,11 @@ const Layout = ({ children }) => {
       icon: Calendar,
     },
     {
+      name: "Monthly Schedule",
+      path: "/schedule-view",
+      icon: CalendarDays,
+    },
+    {
       name: "User Profile",
       path: "/profile",
       icon: User,
@@ -93,7 +99,7 @@ const Layout = ({ children }) => {
           {
             name: "Business Unit Schedules",
             path: "/admin/business-unit-schedules",
-            icon: CalendarDays,
+            icon: ClipboardList,
             adminOnly: true,
           },
         ]
