@@ -12,6 +12,8 @@ import {
   CalendarDays,
   Building,
   ClipboardList,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 
@@ -21,12 +23,102 @@ const Layout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [expandedSections, setExpandedSections] = useState(
+    new Set(["scheduling"])
+  ); // Default expanded
+
+  // Define navigation sections
+  const navigationSections = [
+    {
+      id: "scheduling",
+      title: "Scheduling",
+      icon: Calendar,
+      items: [
+        {
+          name: "Weekly Schedule",
+          path: "/schedule",
+          icon: Calendar,
+        },
+        {
+          name: "Monthly Schedule",
+          path: "/schedule-view",
+          icon: CalendarDays,
+        },
+      ],
+    },
+    {
+      id: "management",
+      title: "Management",
+      icon: Users,
+      items: [
+        {
+          name: "Team Management",
+          path: "/team-management",
+          icon: Users,
+        },
+        {
+          name: "Business Unit",
+          path: "/business-unit",
+          icon: Building2,
+        },
+      ],
+    },
+    // Admin-only sections
+    ...(user?.role === "ADMIN"
+      ? [
+          {
+            id: "administration",
+            title: "Administration",
+            icon: Settings,
+            items: [
+              {
+                name: "User Management",
+                path: "/admin/users",
+                icon: Settings,
+              },
+              {
+                name: "Organization Management",
+                path: "/admin/organizations",
+                icon: Building,
+              },
+              {
+                name: "Business Unit Schedules",
+                path: "/admin/business-unit-schedules",
+                icon: ClipboardList,
+              },
+            ],
+          },
+        ]
+      : []),
+    {
+      id: "profile",
+      title: "Profile",
+      icon: User,
+      items: [
+        {
+          name: "User Profile",
+          path: "/profile",
+          icon: User,
+        },
+      ],
+    },
+  ];
 
   // Add debugging on initial render and route changes
   useEffect(() => {
     console.log("Layout component rendered");
     console.log("Current path:", location.pathname);
-  }, [location]);
+
+    // Auto-expand the section containing the current route
+    const currentPath = location.pathname;
+    const sectionToExpand = navigationSections.find((section) =>
+      section.items.some((item) => item.path === currentPath)
+    );
+
+    if (sectionToExpand && !expandedSections.has(sectionToExpand.id)) {
+      setExpandedSections((prev) => new Set([...prev, sectionToExpand.id]));
+    }
+  }, [location, navigationSections, expandedSections]);
 
   const handleLogout = () => {
     logout();
@@ -43,6 +135,18 @@ const Layout = ({ children }) => {
     navigate(path);
   };
 
+  const toggleSection = (sectionId) => {
+    setExpandedSections((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(sectionId)) {
+        newSet.delete(sectionId);
+      } else {
+        newSet.add(sectionId);
+      }
+      return newSet;
+    });
+  };
+
   // Common NavLink style function
   const getLinkStyles = ({ isActive }) => {
     console.log("NavLink active state:", isActive);
@@ -54,57 +158,99 @@ const Layout = ({ children }) => {
     group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors duration-200`;
   };
 
-  // Define navigation items
-  const navigationItems = [
-    {
-      name: "Weekly Schedule",
-      path: "/schedule",
-      icon: Calendar,
-    },
-    {
-      name: "Monthly Schedule",
-      path: "/schedule-view",
-      icon: CalendarDays,
-    },
-    {
-      name: "User Profile",
-      path: "/profile",
-      icon: User,
-    },
-    {
-      name: "Business Unit",
-      path: "/business-unit",
-      icon: Building2,
-    },
-    {
-      name: "Team Management",
-      path: "/team-management",
-      icon: Users,
-    },
-    // Admin-only menu items
-    ...(user?.role === "ADMIN"
-      ? [
-          {
-            name: "User Management",
-            path: "/admin/users",
-            icon: Settings,
-            adminOnly: true,
-          },
-          {
-            name: "Organization Management",
-            path: "/admin/organizations",
-            icon: Building,
-            adminOnly: true,
-          },
-          {
-            name: "Business Unit Schedules",
-            path: "/admin/business-unit-schedules",
-            icon: ClipboardList,
-            adminOnly: true,
-          },
-        ]
-      : []),
-  ];
+  // Render navigation section
+  const renderNavigationSection = (section) => {
+    const isExpanded = expandedSections.has(section.id);
+
+    return (
+      <div key={section.id} className="space-y-1">
+        {/* Section Header */}
+        <button
+          onClick={() => toggleSection(section.id)}
+          className="w-full flex items-center justify-between px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-100 rounded-md transition-colors duration-200"
+        >
+          <div className="flex items-center">
+            <section.icon className="mr-3 h-5 w-5 text-gray-500" />
+            {section.title}
+          </div>
+          {isExpanded ? (
+            <ChevronDown className="h-4 w-4 text-gray-500" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-gray-500" />
+          )}
+        </button>
+
+        {/* Section Items */}
+        {isExpanded && (
+          <div className="ml-6 space-y-1 border-l-2 border-gray-200 pl-2">
+            {section.items.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={getLinkStyles}
+                onClick={() => handleNavLinkClick(item.path)}
+              >
+                <item.icon className="mr-3 h-4 w-4 text-gray-400" />
+                {item.name}
+              </NavLink>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Render mobile navigation section
+  const renderMobileNavigationSection = (section) => {
+    const isExpanded = expandedSections.has(section.id);
+
+    return (
+      <div key={section.id} className="space-y-1">
+        {/* Section Header */}
+        <button
+          onClick={() => toggleSection(section.id)}
+          className="w-full flex items-center justify-between px-3 py-2 text-base font-semibold text-gray-800 hover:bg-gray-100 rounded-md transition-colors duration-200"
+        >
+          <div className="flex items-center">
+            <section.icon className="mr-4 h-5 w-5 text-gray-500" />
+            {section.title}
+          </div>
+          {isExpanded ? (
+            <ChevronDown className="h-4 w-4 text-gray-500" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-gray-500" />
+          )}
+        </button>
+
+        {/* Section Items */}
+        {isExpanded && (
+          <div className="ml-6 space-y-1 border-l-2 border-gray-200 pl-2">
+            {section.items.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={({ isActive }) =>
+                  `${
+                    isActive
+                      ? "bg-gray-100 text-gray-900"
+                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                  } group flex items-center px-2 py-2 text-base font-medium rounded-md`
+                }
+                onClick={() => {
+                  console.log(`Mobile ${item.name} clicked`);
+                  handleNavLinkClick(item.path);
+                  toggleMobileMenu();
+                }}
+              >
+                <item.icon className="mr-4 h-4 w-4 text-gray-400" />
+                {item.name}
+              </NavLink>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="h-screen flex overflow-hidden bg-gray-100">
@@ -126,17 +272,14 @@ const Layout = ({ children }) => {
               <h1 className="text-xl font-semibold text-gray-800">ClockWise</h1>
             </div>
             <div className="mt-8 flex-grow flex flex-col">
-              <nav className="flex-1 px-4 space-y-2">
-                {navigationItems.map((item) => (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    className={getLinkStyles}
-                    onClick={() => handleNavLinkClick(item.path)}
-                  >
-                    <item.icon className="mr-3 h-5 w-5 text-gray-400" />
-                    {item.name}
-                  </NavLink>
+              <nav className="flex-1 px-4 space-y-4">
+                {navigationSections.map((section, index) => (
+                  <div key={section.id}>
+                    {renderNavigationSection(section)}
+                    {index < navigationSections.length - 1 && (
+                      <div className="mt-4 border-t border-gray-100"></div>
+                    )}
+                  </div>
                 ))}
               </nav>
             </div>
@@ -192,27 +335,14 @@ const Layout = ({ children }) => {
                   ClockWise
                 </h1>
               </div>
-              <nav className="mt-5 px-2 space-y-1">
-                {navigationItems.map((item) => (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    className={({ isActive }) =>
-                      `${
-                        isActive
-                          ? "bg-gray-100 text-gray-900"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                      } group flex items-center px-2 py-2 text-base font-medium rounded-md`
-                    }
-                    onClick={() => {
-                      console.log(`Mobile ${item.name} clicked`);
-                      handleNavLinkClick(item.path);
-                      toggleMobileMenu();
-                    }}
-                  >
-                    <item.icon className="mr-4 h-5 w-5 text-gray-400" />
-                    {item.name}
-                  </NavLink>
+              <nav className="mt-5 px-2 space-y-4">
+                {navigationSections.map((section, index) => (
+                  <div key={section.id}>
+                    {renderMobileNavigationSection(section)}
+                    {index < navigationSections.length - 1 && (
+                      <div className="mt-4 border-t border-gray-100"></div>
+                    )}
+                  </div>
                 ))}
               </nav>
             </div>

@@ -29,6 +29,9 @@ const TeamManagementPage = () => {
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingMember, setEditingMember] = useState(null);
+  const [editedContractHours, setEditedContractHours] = useState("");
 
   // Search states for adding members
   const [searchFirstName, setSearchFirstName] = useState("");
@@ -94,6 +97,7 @@ const TeamManagementPage = () => {
           userStatus: member.userStatus || "ACTIVE",
           businessUnitName: member.businessUnitName || "Unknown",
           isCurrentUser: isCurrentUser,
+          contractHours: member.contractHours,
         };
       });
 
@@ -263,6 +267,54 @@ const TeamManagementPage = () => {
       return () => clearTimeout(timer);
     }
   }, [error]);
+
+  const handleUpdateContractHours = async (e) => {
+    e.preventDefault();
+
+    if (!editingMember) return;
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `${USER_BASE_URL}/users/${editingMember.id}/contract-hours`,
+        {
+          method: "PUT",
+          headers: {
+            ...getAuthHeaders(),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contractHours:
+              editedContractHours === ""
+                ? null
+                : parseInt(editedContractHours, 10),
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(errorData || `HTTP error! status: ${response.status}`);
+      }
+
+      setSuccessMessage(
+        `Successfully updated contract hours for ${editingMember.fullName}!`
+      );
+      setShowEditModal(false);
+      setEditingMember(null);
+      setEditedContractHours("");
+
+      // Refresh team members
+      fetchTeamMembers();
+    } catch (error) {
+      console.error("Error updating contract hours:", error);
+      setError(`Failed to update contract hours: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const getRoleColor = (role) => {
     switch (role?.toUpperCase()) {
@@ -456,6 +508,17 @@ const TeamManagementPage = () => {
                   <div className="flex space-x-1">
                     <button
                       onClick={() => {
+                        setEditingMember(member);
+                        setEditedContractHours(member.contractHours || "");
+                        setShowEditModal(true);
+                      }}
+                      className="p-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                      title="Edit member"
+                    >
+                      <Edit3 size={14} />
+                    </button>
+                    <button
+                      onClick={() => {
                         setSelectedMember(member);
                         setShowRemoveModal(true);
                       }}
@@ -506,6 +569,16 @@ const TeamManagementPage = () => {
                     </span>
                   </div>
                 )}
+
+                {member.contractHours != null &&
+                  member.contractHours !== "" && (
+                    <div className="flex items-center space-x-2">
+                      <Mail size={12} className="text-gray-400 flex-shrink-0" />
+                      <span className="text-xs text-gray-600 truncate">
+                        Contract Hours: {member.contractHours}
+                      </span>
+                    </div>
+                  )}
 
                 {member.phoneNumber && (
                   <div className="flex items-center space-x-2">
@@ -673,6 +746,71 @@ const TeamManagementPage = () => {
                     <>
                       <UserPlus size={16} className="mr-2" />
                       Add Member
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {showEditModal && editingMember && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center">
+                <div className="bg-blue-100 rounded-full p-2 mr-3">
+                  <Edit3 size={20} className="text-blue-600" />
+                </div>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Edit Team Member
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-full"
+              >
+                <X size={16} className="text-gray-500" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateContractHours} className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Contract Hours
+                </label>
+                <input
+                  type="number"
+                  value={editedContractHours}
+                  onChange={(e) => setEditedContractHours(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin mr-2" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={16} className="mr-2" />
+                      Save Changes
                     </>
                   )}
                 </button>

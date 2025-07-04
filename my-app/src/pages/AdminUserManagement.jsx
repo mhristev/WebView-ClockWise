@@ -46,6 +46,7 @@ const AdminUserManagement = () => {
     lastName: "",
     email: "",
     phoneNumber: "",
+    contractHours: "",
   });
 
   // Available roles
@@ -119,6 +120,7 @@ const AdminUserManagement = () => {
         businessUnitId: userData.businessUnitId || null,
         businessUnitName: userData.businessUnitName || "Unassigned",
         isCurrentUser: user && userData.id === user.id,
+        contractHours: userData.contractHours,
       }));
 
       // Sort users: current user first, then alphabetically
@@ -209,6 +211,7 @@ const AdminUserManagement = () => {
 
   const handleEditUser = (userData) => {
     console.log("Editing user:", userData);
+    console.log("Original user role:", userData.role);
 
     setEditingUser(userData);
 
@@ -216,6 +219,8 @@ const AdminUserManagement = () => {
     const normalizedRole = userData.role
       ? userData.role.toUpperCase()
       : "EMPLOYEE";
+
+    console.log("Normalized role for dropdown:", normalizedRole);
 
     setEditForm({
       role: normalizedRole,
@@ -228,6 +233,7 @@ const AdminUserManagement = () => {
       lastName: userData.lastName || "",
       email: userData.email || "",
       phoneNumber: userData.phoneNumber || "",
+      contractHours: userData.contractHours || "",
     });
 
     console.log("Edit form initialized with:", {
@@ -254,6 +260,7 @@ const AdminUserManagement = () => {
       lastName: "",
       email: "",
       phoneNumber: "",
+      contractHours: "",
     });
   };
 
@@ -287,6 +294,10 @@ const AdminUserManagement = () => {
         lastName: editForm.lastName.trim(),
         email: editForm.email.trim(),
         phoneNumber: editForm.phoneNumber ? editForm.phoneNumber.trim() : null,
+        contractHours:
+          editForm.contractHours === ""
+            ? null
+            : parseInt(editForm.contractHours, 10),
       };
 
       // Handle business unit assignment/unassignment
@@ -660,6 +671,13 @@ const AdminUserManagement = () => {
                             {userData.phoneNumber}
                           </p>
                         )}
+                        {userData.contractHours != null &&
+                          userData.contractHours !== "" && (
+                            <p className="text-sm text-gray-500 flex items-center">
+                              <Mail size={12} className="mr-1" />
+                              Contract Hours: {userData.contractHours}
+                            </p>
+                          )}
                       </div>
                     </div>
                   </div>
@@ -822,6 +840,23 @@ const AdminUserManagement = () => {
                     value={editForm.phoneNumber || ""}
                     onChange={handleInputChange}
                     placeholder="Enter phone number"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <label
+                    htmlFor="contractHours"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    Contract Hours
+                  </label>
+                  <input
+                    type="number"
+                    id="contractHours"
+                    name="contractHours"
+                    value={editForm.contractHours || ""}
+                    onChange={handleInputChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
                   />
                 </div>
