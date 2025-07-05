@@ -1,5 +1,18 @@
-import React from "react";
-import { X, Clock, FileText, User, Calendar } from "lucide-react";
+import React, { useState } from "react";
+import {
+  X,
+  Clock,
+  FileText,
+  User,
+  Calendar,
+  Check,
+  Edit3,
+  AlertCircle,
+  Save,
+  XCircle,
+} from "lucide-react";
+import { useAuth } from "../auth/AuthContext";
+import { API_ENDPOINTS_CONFIG } from "../config/api";
 
 const DayDetailModal = ({
   isOpen,
@@ -7,21 +20,67 @@ const DayDetailModal = ({
   selectedDate,
   shifts,
   employeeName,
+  onWorkSessionUpdate,
 }) => {
+  const { user, getAuthHeaders } = useAuth();
+  const [editingWorkSession, setEditingWorkSession] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  // Add local state to track work session updates
+  const [localShifts, setLocalShifts] = useState(shifts);
+
+  // Form states for editing
+  const [editForm, setEditForm] = useState({
+    clockInTime: "",
+    clockOutTime: "",
+  });
+
+  // Update local shifts when props change
+  React.useEffect(() => {
+    setLocalShifts(shifts);
+  }, [shifts]);
+
   if (!isOpen) return null;
 
+  const isManagerOrAdmin =
+    user && (user.role === "MANAGER" || user.role === "ADMIN");
+
+  const parseTimestamp = (timestamp) => {
+    if (typeof timestamp === "number") {
+      return timestamp > 1000000000000
+        ? new Date(timestamp)
+        : new Date(timestamp * 1000);
+    } else if (typeof timestamp === "string") {
+      return new Date(timestamp);
+    }
+    return new Date();
+  };
+
   // Format time for display
-  const formatTime = (timeString) => {
+  const formatTime = (timeValue) => {
     try {
-      const date = new Date(timeString);
+      const date = parseTimestamp(timeValue);
       return date.toLocaleTimeString("en-US", {
         hour: "2-digit",
         minute: "2-digit",
         hour12: false,
       });
     } catch (error) {
-      console.error("Error formatting time:", timeString, error);
+      console.error("Error formatting time:", timeValue, error);
       return "Invalid time";
+    }
+  };
+
+  // Format time for input (HH:MM)
+  const formatTimeForInput = (timeValue) => {
+    try {
+      const date = parseTimestamp(timeValue);
+      const hours = date.getHours().toString().padStart(2, "0");
+      const minutes = date.getMinutes().toString().padStart(2, "0");
+      return `${hours}:${minutes}`;
+    } catch (error) {
+      console.error("Error formatting time for input:", timeValue, error);
+      return "00:00";
     }
   };
 
@@ -38,11 +97,11 @@ const DayDetailModal = ({
   // Calculate total hours for the day
   const calculateTotalHours = () => {
     let totalMinutes = 0;
-    shifts.forEach((shift) => {
+    localShifts.forEach((shift) => {
       if (shift.workSession && shift.workSession.clockOutTime) {
         try {
-          const start = new Date(shift.workSession.clockInTime);
-          const end = new Date(shift.workSession.clockOutTime);
+          const start = parseTimestamp(shift.workSession.clockInTime);
+          const end = parseTimestamp(shift.workSession.clockOutTime);
           totalMinutes += (end - start) / (1000 * 60);
         } catch (error) {
           console.error("Error calculating hours:", error);
@@ -52,9 +111,154 @@ const DayDetailModal = ({
     return (totalMinutes / 60).toFixed(1);
   };
 
+  // Start editing a work session
+  const startEditingWorkSession = (shift) => {
+    const workSession = shift.workSession;
+    setEditingWorkSession(shift.id);
+    setEditForm({
+      clockInTime: formatTimeForInput(workSession.clockInTime),
+      clockOutTime: workSession.clockOutTime
+        ? formatTimeForInput(workSession.clockOutTime)
+        : "",
+    });
+    setError(null);
+  };
+
+  // Cancel editing
+  const cancelEditing = () => {
+    setEditingWorkSession(null);
+    setEditForm({
+      clockInTime: "",
+      clockOutTime: "",
+    });
+    setError(null);
+  };
+
+  // Update local shift state when work session is updated
+  const updateLocalShift = (updatedWorkSession) => {
+    setLocalShifts((prevShifts) =>
+      prevShifts.map((shift) =>
+        shift.workSession && shift.workSession.id === updatedWorkSession.id
+          ? { ...shift, workSession: updatedWorkSession }
+          : shift
+      )
+    );
+  };
+
+  // Confirm work session
+  const confirmWorkSession = async (workSessionId) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(API_ENDPOINTS_CONFIG.confirmWorkSession(), {
+        method: "POST",
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          workSessionId,
+          confirmedBy: user.id,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to confirm work session: ${response.status}`);
+      }
+
+      const updatedWorkSession = await response.json();
+
+      // Update local state immediately
+      updateLocalShift(updatedWorkSession);
+
+      // Notify parent component about the update
+      if (onWorkSessionUpdate) {
+        onWorkSessionUpdate(updatedWorkSession);
+      }
+
+      setError(null);
+    } catch (error) {
+      console.error("Error confirming work session:", error);
+      setError("Failed to confirm work session. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Save work session changes
+  const saveWorkSessionChanges = async (shift) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const workSession = shift.workSession;
+      const selectedDateObj = new Date(selectedDate);
+
+      // Create datetime objects for the selected date
+      const [clockInHours, clockInMinutes] = editForm.clockInTime
+        .split(":")
+        .map(Number);
+      const [clockOutHours, clockOutMinutes] = editForm.clockOutTime
+        .split(":")
+        .map(Number);
+
+      const clockInDateTime = new Date(selectedDateObj);
+      clockInDateTime.setHours(clockInHours, clockInMinutes, 0, 0);
+
+      const clockOutDateTime = new Date(selectedDateObj);
+      clockOutDateTime.setHours(clockOutHours, clockOutMinutes, 0, 0);
+
+      // If clock out is before clock in, assume it's the next day
+      if (clockOutDateTime < clockInDateTime) {
+        clockOutDateTime.setDate(clockOutDateTime.getDate() + 1);
+      }
+
+      const response = await fetch(
+        API_ENDPOINTS_CONFIG.modifyAndConfirmWorkSession(),
+        {
+          method: "PUT",
+          headers: {
+            ...getAuthHeaders(),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            workSessionId: workSession.id,
+            newClockInTime: clockInDateTime.toISOString(),
+            newClockOutTime: clockOutDateTime.toISOString(),
+            modifiedBy: user.id,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to modify work session: ${response.status}`);
+      }
+
+      const updatedWorkSession = await response.json();
+
+      // Update local state immediately
+      updateLocalShift(updatedWorkSession);
+
+      // Notify parent component about the update
+      if (onWorkSessionUpdate) {
+        onWorkSessionUpdate(updatedWorkSession);
+      }
+
+      cancelEditing();
+    } catch (error) {
+      console.error("Error saving work session changes:", error);
+      setError("Failed to save changes. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Remove the updateSessionNote function as it's no longer needed for managers
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <div className="flex items-center gap-3">
@@ -74,9 +278,21 @@ const DayDetailModal = ({
           </button>
         </div>
 
+        {/* Error Display */}
+        {error && (
+          <div className="mx-6 mt-4 bg-red-50 border border-red-200 rounded-md p-4">
+            <div className="flex">
+              <AlertCircle className="h-5 w-5 text-red-400" />
+              <div className="ml-3">
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
-          {shifts.length === 0 ? (
+        <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+          {localShifts.length === 0 ? (
             <div className="text-center py-12">
               <Clock className="h-12 w-12 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -102,7 +318,7 @@ const DayDetailModal = ({
                   <div>
                     <p className="text-sm font-medium text-blue-800">Shifts</p>
                     <p className="text-2xl font-bold text-blue-900">
-                      {shifts.length}
+                      {localShifts.length}
                     </p>
                   </div>
                 </div>
@@ -110,7 +326,7 @@ const DayDetailModal = ({
 
               {/* Shifts */}
               <div className="space-y-4">
-                {shifts.map((shift, index) => (
+                {localShifts.map((shift, index) => (
                   <div key={shift.id} className="border rounded-lg p-4">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2">
@@ -134,48 +350,214 @@ const DayDetailModal = ({
 
                     {/* Work Session */}
                     {shift.workSession ? (
-                      <div className="bg-green-50 border border-green-200 rounded-md p-4">
-                        <div className="flex items-center gap-2 mb-3">
-                          <User className="h-4 w-4 text-green-600" />
-                          <h4 className="font-medium text-green-800">
-                            Work Session
-                          </h4>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4 mb-3">
-                          <div>
-                            <p className="text-xs text-green-600 font-medium">
-                              Clock In
-                            </p>
-                            <p className="text-sm text-green-800">
-                              {formatTime(shift.workSession.clockInTime)}
-                            </p>
+                      <div
+                        className={`border rounded-md p-4 ${
+                          shift.workSession.confirmed
+                            ? "bg-green-50 border-green-200"
+                            : "bg-amber-50 border-amber-200"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <User
+                              className={`h-4 w-4 ${
+                                shift.workSession.confirmed
+                                  ? "text-green-600"
+                                  : "text-amber-600"
+                              }`}
+                            />
+                            <h4
+                              className={`font-medium ${
+                                shift.workSession.confirmed
+                                  ? "text-green-800"
+                                  : "text-amber-800"
+                              }`}
+                            >
+                              Work Session
+                              {shift.workSession.confirmed && (
+                                <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  <Check className="h-3 w-3 mr-1" />
+                                  Confirmed
+                                </span>
+                              )}
+                              {!shift.workSession.confirmed && (
+                                <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                  <AlertCircle className="h-3 w-3 mr-1" />
+                                  Needs Approval
+                                </span>
+                              )}
+                            </h4>
                           </div>
-                          {shift.workSession.clockOutTime && (
-                            <div>
-                              <p className="text-xs text-green-600 font-medium">
-                                Clock Out
-                              </p>
-                              <p className="text-sm text-green-800">
-                                {formatTime(shift.workSession.clockOutTime)}
-                              </p>
+
+                          {/* Management Actions - Updated logic */}
+                          {isManagerOrAdmin && (
+                            <div className="flex gap-2">
+                              {/* Confirm button - only show if not confirmed */}
+                              {!shift.workSession.confirmed && (
+                                <button
+                                  onClick={() =>
+                                    confirmWorkSession(shift.workSession.id)
+                                  }
+                                  disabled={loading}
+                                  className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 text-sm"
+                                >
+                                  <Check className="h-3 w-3" />
+                                  Confirm
+                                </button>
+                              )}
+                              {/* Edit button - always available for managers */}
+                              <button
+                                onClick={() => startEditingWorkSession(shift)}
+                                disabled={loading}
+                                className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm"
+                              >
+                                <Edit3 className="h-3 w-3" />
+                                Edit
+                              </button>
                             </div>
                           )}
                         </div>
 
-                        {/* Session Note */}
-                        {shift.workSession.note && (
-                          <div className="bg-white border border-green-200 rounded-md p-3">
-                            <div className="flex items-start gap-2">
-                              <FileText className="h-4 w-4 text-green-600 mt-0.5" />
+                        {/* Work Session Details */}
+                        {editingWorkSession === shift.id ? (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
                               <div>
-                                <p className="text-xs font-medium text-green-800 mb-1">
-                                  Session Note
+                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                  Clock In Time
+                                </label>
+                                <input
+                                  type="time"
+                                  value={editForm.clockInTime}
+                                  onChange={(e) =>
+                                    setEditForm({
+                                      ...editForm,
+                                      clockInTime: e.target.value,
+                                    })
+                                  }
+                                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                  Clock Out Time
+                                </label>
+                                <input
+                                  type="time"
+                                  value={editForm.clockOutTime}
+                                  onChange={(e) =>
+                                    setEditForm({
+                                      ...editForm,
+                                      clockOutTime: e.target.value,
+                                    })
+                                  }
+                                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => saveWorkSessionChanges(shift)}
+                                disabled={loading}
+                                className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 text-sm"
+                              >
+                                <Save className="h-3 w-3" />
+                                Save & Confirm
+                              </button>
+                              <button
+                                onClick={cancelEditing}
+                                disabled={loading}
+                                className="flex items-center gap-1 px-3 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700 disabled:opacity-50 text-sm"
+                              >
+                                <XCircle className="h-3 w-3" />
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-4 mb-3">
+                            <div>
+                              <p
+                                className={`text-xs font-medium mb-1 ${
+                                  shift.workSession.confirmed
+                                    ? "text-green-600"
+                                    : "text-amber-600"
+                                }`}
+                              >
+                                Clock In
+                              </p>
+                              <p
+                                className={`text-sm ${
+                                  shift.workSession.confirmed
+                                    ? "text-green-800"
+                                    : "text-amber-800"
+                                }`}
+                              >
+                                {formatTime(shift.workSession.clockInTime)}
+                              </p>
+                            </div>
+                            {shift.workSession.clockOutTime && (
+                              <div>
+                                <p
+                                  className={`text-xs font-medium mb-1 ${
+                                    shift.workSession.confirmed
+                                      ? "text-green-600"
+                                      : "text-amber-600"
+                                  }`}
+                                >
+                                  Clock Out
                                 </p>
-                                <p className="text-sm text-green-700">
-                                  {shift.workSession.note.noteContent}
+                                <p
+                                  className={`text-sm ${
+                                    shift.workSession.confirmed
+                                      ? "text-green-800"
+                                      : "text-amber-800"
+                                  }`}
+                                >
+                                  {formatTime(shift.workSession.clockOutTime)}
                                 </p>
                               </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Session Note - Always Read-only for managers */}
+                        {shift.workSession.sessionNote && (
+                          <div className="bg-gray-50 border border-gray-200 rounded-md p-3 mt-3">
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex items-start gap-2">
+                                <FileText className="h-4 w-4 text-gray-600 mt-0.5" />
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <p className="text-xs font-medium text-gray-800">
+                                      Session Note
+                                    </p>
+                                    {isManagerOrAdmin && (
+                                      <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">
+                                        Employee Note - Read Only
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="bg-white border border-gray-200 rounded-md p-2">
+                                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                                      {shift.workSession.sessionNote.content}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Show message if no session note exists */}
+                        {!shift.workSession.sessionNote && isManagerOrAdmin && (
+                          <div className="bg-gray-50 border border-gray-200 rounded-md p-3 mt-3">
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-gray-400" />
+                              <p className="text-sm text-gray-500 italic">
+                                No session note provided by employee
+                              </p>
                             </div>
                           </div>
                         )}

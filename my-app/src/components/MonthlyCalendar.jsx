@@ -226,9 +226,12 @@ const MonthlyCalendar = ({
     const month = selectedDate.month - 1; // JavaScript months are 0-indexed
 
     const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
     const startDate = new Date(firstDay);
-    startDate.setDate(startDate.getDate() - firstDay.getDay()); // Start from Sunday
+
+    // Start from Monday (1) instead of Sunday (0)
+    const dayOfWeek = firstDay.getDay();
+    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // If Sunday (0), subtract 6 days; otherwise subtract (dayOfWeek - 1)
+    startDate.setDate(startDate.getDate() - daysToSubtract);
 
     const calendar = [];
     const currentDate = new Date(startDate);
@@ -317,7 +320,7 @@ const MonthlyCalendar = ({
   };
 
   const calendar = generateCalendar();
-  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]; // Changed order to start with Monday
   const monthlyStats = calculateMonthlyStats();
   const monthName = new Date(
     selectedDate.year,
@@ -414,9 +417,10 @@ const MonthlyCalendar = ({
               key={`${weekIndex}-${dayIndex}`}
               className={`
                 min-h-[120px] p-2 border-r border-b cursor-pointer hover:bg-gray-50 transition-colors
-                ${!day.isCurrentMonth 
-                  ? "bg-gray-200 text-gray-500 border-gray-400" 
-                  : "bg-blue-50 border-blue-300"
+                ${
+                  !day.isCurrentMonth
+                    ? "bg-gray-200 text-gray-500 border-gray-400"
+                    : "bg-blue-50 border-blue-300"
                 }
                 ${day.hasShifts && day.isCurrentMonth ? "bg-blue-100" : ""}
                 ${day.hasShifts && !day.isCurrentMonth ? "bg-gray-300" : ""}
@@ -426,8 +430,8 @@ const MonthlyCalendar = ({
               {/* Day Number */}
               <div
                 className={`text-sm font-medium mb-1 px-2 py-1 text-center ${
-                  !day.isCurrentMonth 
-                    ? "text-gray-600" 
+                  !day.isCurrentMonth
+                    ? "text-gray-600"
                     : "text-blue-800 font-semibold"
                 }`}
               >
@@ -436,7 +440,7 @@ const MonthlyCalendar = ({
 
               {/* Shifts */}
               <div className="space-y-1">
-                {day.shifts.slice(0, 2).map((shift, index) => {
+                {day.shifts.slice(0, 2).map((shift) => {
                   const startTime = parseTimestamp(shift.startTime);
                   const endTime = parseTimestamp(shift.endTime);
                   const startTimeStr = formatTime(startTime);
@@ -446,18 +450,50 @@ const MonthlyCalendar = ({
                   const durationMinutes = (endTime - startTime) / (1000 * 60);
                   const durationHours = (durationMinutes / 60).toFixed(1);
 
+                  // Check work session status
+                  const hasWorkSession = shift.workSession;
+                  const isConfirmed =
+                    hasWorkSession && shift.workSession.confirmed;
+                  const needsApproval =
+                    hasWorkSession && !shift.workSession.confirmed;
+
                   return (
                     <div
                       key={shift.id}
-                      className="text-xs bg-blue-600 text-white px-2 py-1 rounded"
-                      title={`${startTimeStr} - ${endTimeStr} (${durationHours}h) - ${shift.role}`}
+                      className={`text-xs px-2 py-1 rounded relative ${
+                        isConfirmed
+                          ? "bg-green-600 text-white"
+                          : needsApproval
+                          ? "bg-amber-500 text-white"
+                          : "bg-blue-600 text-white"
+                      }`}
+                      title={`${startTimeStr} - ${endTimeStr} (${durationHours}h) - ${
+                        shift.role
+                      }${
+                        hasWorkSession
+                          ? isConfirmed
+                            ? " ✓ Confirmed"
+                            : " ⚠ Needs Approval"
+                          : " ⏱ No Work Session"
+                      }`}
                     >
                       <div className="font-medium text-center">
                         {startTimeStr} - {endTimeStr}
                       </div>
-                      <div className="text-blue-200 text-xs truncate text-center">
+                      <div className="text-xs truncate text-center opacity-90">
                         {shift.role} ({durationHours}h)
                       </div>
+
+                      {/* Work session indicator */}
+                      {hasWorkSession && (
+                        <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full border border-white text-xs flex items-center justify-center">
+                          {isConfirmed ? (
+                            <span className="text-white text-xs">✓</span>
+                          ) : (
+                            <span className="text-white text-xs">!</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

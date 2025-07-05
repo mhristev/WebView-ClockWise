@@ -72,6 +72,18 @@ export const API_ENDPOINTS_CONFIG = {
   // Monthly schedule endpoint for managers
   monthlySchedule: (businessUnitId, userId, month, year) =>
     `${PLANNING_BASE_URL}/business-units/${businessUnitId}/users/${userId}/monthly-schedule?month=${month}&year=${year}`,
+    
+  // Work session management endpoints
+  unconfirmedWorkSessions: (businessUnitId) => 
+    `${PLANNING_BASE_URL}/work-sessions/management/business-units/${businessUnitId}/unconfirmed`,
+  confirmWorkSession: () => 
+    `${PLANNING_BASE_URL}/work-sessions/management/confirm`,
+  modifyWorkSession: () => 
+    `${PLANNING_BASE_URL}/work-sessions/management/modify`,
+  modifyAndConfirmWorkSession: () => 
+    `${PLANNING_BASE_URL}/work-sessions/management/modify-and-confirm`,
+  updateSessionNote: () => 
+    `${PLANNING_BASE_URL}/work-sessions/management/session-note`,
 };
 
 // Environment info for debugging

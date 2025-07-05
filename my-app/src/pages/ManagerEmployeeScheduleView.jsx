@@ -23,12 +23,11 @@ const ManagerEmployeeScheduleView = () => {
   const [employees, setEmployees] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [selectedDate, setSelectedDate] = useState(() => {
-    // Default to previous month
+    // Default to current month
     const now = new Date();
-    const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     return {
-      month: prevMonth.getMonth() + 1,
-      year: prevMonth.getFullYear(),
+      month: now.getMonth() + 1,
+      year: now.getFullYear(),
     };
   });
   const [scheduleData, setScheduleData] = useState([]);
@@ -296,12 +295,6 @@ const ManagerEmployeeScheduleView = () => {
     setIsModalOpen(true);
   };
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setSelectedDayDate(null);
-    setSelectedDayShifts([]);
-  };
-
   const exportToPDF = () => {
     try {
       if (!selectedEmployee || scheduleData.length === 0) {
@@ -492,6 +485,12 @@ const ManagerEmployeeScheduleView = () => {
       console.error("Error generating PDF:", error);
       setError(`Failed to generate PDF: ${error.message}`);
     }
+  };
+
+  // Handle work session updates
+  const handleWorkSessionUpdate = () => {
+    // Refresh the monthly schedule to reflect changes
+    fetchMonthlySchedule();
   };
 
   // Access control check
@@ -708,10 +707,11 @@ const ManagerEmployeeScheduleView = () => {
       {isModalOpen && selectedDayDate && (
         <DayDetailModal
           isOpen={isModalOpen}
-          onClose={handleCloseModal}
+          onClose={() => setIsModalOpen(false)}
           selectedDate={selectedDayDate}
           shifts={selectedDayShifts}
           employeeName={getSelectedEmployeeName()}
+          onWorkSessionUpdate={handleWorkSessionUpdate}
         />
       )}
     </div>
