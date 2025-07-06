@@ -37,7 +37,23 @@ const DayDetailModal = ({
 
   // Update local shifts when props change
   React.useEffect(() => {
-    setLocalShifts(shifts);
+    console.log(
+      "[DayDetailModal] Updating local shifts with fresh data:",
+      shifts
+    );
+    // Ensure we preserve any confirmation status that might have been updated
+    setLocalShifts(
+      shifts.map((shift) => ({
+        ...shift,
+        workSession: shift.workSession
+          ? {
+              ...shift.workSession,
+              // Log the confirmation status for debugging
+              confirmed: shift.workSession.confirmed || false,
+            }
+          : null,
+      }))
+    );
   }, [shifts]);
 
   if (!isOpen) return null;
@@ -58,6 +74,7 @@ const DayDetailModal = ({
 
   // Format time for display
   const formatTime = (timeValue) => {
+    if (!timeValue) return "N/A";
     try {
       const date = parseTimestamp(timeValue);
       return date.toLocaleTimeString("en-US", {
@@ -73,6 +90,7 @@ const DayDetailModal = ({
 
   // Format time for input (HH:MM)
   const formatTimeForInput = (timeValue) => {
+    if (!timeValue) return "";
     try {
       const date = parseTimestamp(timeValue);
       const hours = date.getHours().toString().padStart(2, "0");
@@ -80,7 +98,7 @@ const DayDetailModal = ({
       return `${hours}:${minutes}`;
     } catch (error) {
       console.error("Error formatting time for input:", timeValue, error);
-      return "00:00";
+      return "";
     }
   };
 
@@ -139,7 +157,17 @@ const DayDetailModal = ({
     setLocalShifts((prevShifts) =>
       prevShifts.map((shift) =>
         shift.workSession && shift.workSession.id === updatedWorkSession.id
-          ? { ...shift, workSession: updatedWorkSession }
+          ? {
+              ...shift,
+              workSession: {
+                ...shift.workSession,
+                ...updatedWorkSession,
+                confirmed: true, // Ensure confirmed status is set
+                confirmedBy: updatedWorkSession.confirmedBy || user.id,
+                confirmedAt:
+                  updatedWorkSession.confirmedAt || new Date().toISOString(),
+              },
+            }
           : shift
       )
     );
@@ -151,6 +179,8 @@ const DayDetailModal = ({
     setError(null);
 
     try {
+      console.log("[DayDetailModal] Confirming work session:", workSessionId);
+
       const response = await fetch(API_ENDPOINTS_CONFIG.confirmWorkSession(), {
         method: "POST",
         headers: {
@@ -168,12 +198,19 @@ const DayDetailModal = ({
       }
 
       const updatedWorkSession = await response.json();
+      console.log(
+        "[DayDetailModal] Work session confirmed successfully:",
+        updatedWorkSession
+      );
 
       // Update local state immediately
       updateLocalShift(updatedWorkSession);
 
       // Notify parent component about the update
       if (onWorkSessionUpdate) {
+        console.log(
+          "[DayDetailModal] Notifying parent component of work session update"
+        );
         onWorkSessionUpdate(updatedWorkSession);
       }
 
@@ -399,17 +436,24 @@ const DayDetailModal = ({
                                     confirmWorkSession(shift.workSession.id)
                                   }
                                   disabled={loading}
-                                  className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 text-sm"
+                                  className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 text-sm transition-colors"
                                 >
                                   <Check className="h-3 w-3" />
-                                  Confirm
+                                  {loading ? "Confirming..." : "Confirm"}
                                 </button>
+                              )}
+                              {/* Show confirmed status when confirmed */}
+                              {shift.workSession.confirmed && (
+                                <div className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-800 rounded-md text-sm">
+                                  <Check className="h-3 w-3" />
+                                  Confirmed
+                                </div>
                               )}
                               {/* Edit button - always available for managers */}
                               <button
                                 onClick={() => startEditingWorkSession(shift)}
                                 disabled={loading}
-                                className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm"
+                                className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm transition-colors"
                               >
                                 <Edit3 className="h-3 w-3" />
                                 Edit

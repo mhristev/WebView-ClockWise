@@ -62,12 +62,13 @@ const parseTimestamp = (timestamp) => {
     ]);
     return new Date(year, month - 1, day, hour, minute, second);
   }
-  console.log("Using current date as fallback for:", timestamp);
-  return new Date();
+  console.log("Returning null as fallback for:", timestamp);
+  return null;
 };
 
 // Helper function to format time
 const formatTime = (date) => {
+  if (!date) return "N/A";
   const hours = date.getHours().toString().padStart(2, "0");
   const minutes = date.getMinutes().toString().padStart(2, "0");
   return `${hours}:${minutes}`;

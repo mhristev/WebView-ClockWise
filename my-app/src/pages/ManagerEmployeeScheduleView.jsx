@@ -16,6 +16,16 @@ import DayDetailModal from "../components/DayDetailModal";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 
+// Helper function to format minutes into a more readable "Xh Ym" format
+const formatMinutesToHoursAndMinutes = (minutes) => {
+  if (isNaN(minutes) || minutes <= 0) {
+    return "0h 0m";
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = Math.round(minutes % 60);
+  return `${hours}h ${remainingMinutes}m`;
+};
+
 const ManagerEmployeeScheduleView = () => {
   const { user, getAuthHeaders, getRestaurantId } = useAuth();
 
@@ -140,6 +150,24 @@ const ManagerEmployeeScheduleView = () => {
 
       const data = await response.json();
       console.log("Fetched monthly schedule:", data);
+
+      // Log details of each shift and its work session
+      data.forEach((week) => {
+        if (week.shifts && week.shifts.length > 0) {
+          console.log(`--- Week starting: ${week.weekStartDate} ---`);
+          week.shifts.forEach((shift) => {
+            console.log("Shift Details:", {
+              shiftId: shift.id,
+              startTime: shift.startTime,
+              endTime: shift.endTime,
+              workSession: shift.workSession
+                ? shift.workSession
+                : "No work session",
+            });
+          });
+        }
+      });
+
       console.log("Schedule data structure:", {
         totalWeeks: data.length,
         weeks: data.map((week, index) => ({
@@ -221,11 +249,10 @@ const ManagerEmployeeScheduleView = () => {
       const [year, month, day, hour = 0, minute = 0, second = 0] = timestamp;
       return new Date(year, month - 1, day, hour, minute, second);
     }
-    return new Date();
+    return null; // Return null for invalid or null timestamps
   };
 
   const calculateTotalHours = () => {
-    let totalMinutes = 0;
     let actualWorkedMinutes = 0;
     let scheduledMinutes = 0;
 
@@ -236,7 +263,7 @@ const ManagerEmployeeScheduleView = () => {
           const startTime = parseTimestamp(shift.startTime);
           const endTime = parseTimestamp(shift.endTime);
           const shiftMinutes = (endTime - startTime) / (1000 * 60);
-          scheduledMinutes += shiftMinutes;
+          scheduledMinutes += shiftMinutes > 0 ? shiftMinutes : 0;
         } catch (error) {
           console.error("Error calculating scheduled hours:", error);
         }
@@ -251,7 +278,7 @@ const ManagerEmployeeScheduleView = () => {
             const start = parseTimestamp(shift.workSession.clockInTime);
             const end = parseTimestamp(shift.workSession.clockOutTime);
             const workedMinutes = (end - start) / (1000 * 60);
-            actualWorkedMinutes += workedMinutes;
+            actualWorkedMinutes += workedMinutes > 0 ? workedMinutes : 0;
           } catch (error) {
             console.error("Error calculating worked hours:", error);
           }
@@ -260,12 +287,12 @@ const ManagerEmployeeScheduleView = () => {
     });
 
     // Use actual worked hours if available, otherwise use scheduled hours
-    totalMinutes =
+    const totalMinutes =
       actualWorkedMinutes > 0 ? actualWorkedMinutes : scheduledMinutes;
     return {
-      total: (totalMinutes / 60).toFixed(1),
-      scheduled: (scheduledMinutes / 60).toFixed(1),
-      actual: (actualWorkedMinutes / 60).toFixed(1),
+      total: totalMinutes,
+      scheduled: scheduledMinutes,
+      actual: actualWorkedMinutes,
     };
   };
 
@@ -295,6 +322,60 @@ const ManagerEmployeeScheduleView = () => {
     setIsModalOpen(true);
   };
 
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedDayDate(null);
+    setSelectedDayShifts([]);
+  };
+
+  // Handle work session updates to refresh the schedule data
+  const handleWorkSessionUpdate = async (updatedWorkSession) => {
+    console.log(
+      "[ManagerEmployeeScheduleView] Work session updated:",
+      updatedWorkSession
+    );
+
+    // Update the local schedule data immediately
+    setScheduleData((prevData) =>
+      prevData.map((week) => ({
+        ...week,
+        shifts: week.shifts.map((shift) =>
+          shift.workSession && shift.workSession.id === updatedWorkSession.id
+            ? {
+                ...shift,
+                workSession: {
+                  ...shift.workSession,
+                  ...updatedWorkSession,
+                  confirmed: true,
+                },
+              }
+            : shift
+        ),
+      }))
+    );
+
+    // Also update the selected day shifts if modal is open
+    if (selectedDayShifts.length > 0) {
+      setSelectedDayShifts((prevShifts) =>
+        prevShifts.map((shift) =>
+          shift.workSession && shift.workSession.id === updatedWorkSession.id
+            ? {
+                ...shift,
+                workSession: {
+                  ...shift.workSession,
+                  ...updatedWorkSession,
+                  confirmed: true,
+                },
+              }
+            : shift
+        )
+      );
+    }
+
+    // Optionally, you can also refetch the entire schedule to ensure consistency
+    // fetchMonthlySchedule();
+  };
+
   const exportToPDF = () => {
     try {
       if (!selectedEmployee || scheduleData.length === 0) {
@@ -322,7 +403,11 @@ const ManagerEmployeeScheduleView = () => {
       doc.setFontSize(12);
       doc.text(`Employee: ${employeeName}`, 14, 30);
       doc.text(`Period: ${monthYear}`, 14, 37);
-      doc.text(`Total Hours: ${hours.total}h`, 14, 44);
+      doc.text(
+        `Total Hours: ${formatMinutesToHoursAndMinutes(hours.total)}`,
+        14,
+        44
+      );
 
       // Prepare table data
       const tableData = [];
@@ -376,7 +461,7 @@ const ManagerEmployeeScheduleView = () => {
               });
 
               const workedMinutes = (clockOut - clockIn) / (1000 * 60);
-              actualHours = (workedMinutes / 60).toFixed(1) + "h";
+              actualHours = formatMinutesToHoursAndMinutes(workedMinutes);
             }
           }
 
@@ -485,12 +570,6 @@ const ManagerEmployeeScheduleView = () => {
       console.error("Error generating PDF:", error);
       setError(`Failed to generate PDF: ${error.message}`);
     }
-  };
-
-  // Handle work session updates
-  const handleWorkSessionUpdate = () => {
-    // Refresh the monthly schedule to reflect changes
-    fetchMonthlySchedule();
   };
 
   // Access control check
@@ -625,13 +704,19 @@ const ManagerEmployeeScheduleView = () => {
                     return (
                       <>
                         <p className="text-2xl font-bold text-blue-600">
-                          {hours.total}h
+                          {formatMinutesToHoursAndMinutes(hours.total)}
                         </p>
                         <p className="text-sm text-gray-500">Total Hours</p>
-                        {parseFloat(hours.actual) > 0 && (
+                        {hours.actual > 0 && (
                           <div className="text-xs text-gray-400">
-                            <div>Scheduled: {hours.scheduled}h</div>
-                            <div>Actual: {hours.actual}h</div>
+                            <div>
+                              Scheduled:{" "}
+                              {formatMinutesToHoursAndMinutes(hours.scheduled)}
+                            </div>
+                            <div>
+                              Actual:{" "}
+                              {formatMinutesToHoursAndMinutes(hours.actual)}
+                            </div>
                           </div>
                         )}
                       </>
@@ -651,7 +736,7 @@ const ManagerEmployeeScheduleView = () => {
                 <>
                   <div className="bg-white rounded-lg shadow-sm border p-4">
                     <div className="text-2xl font-bold text-blue-600">
-                      {hours.total}h
+                      {formatMinutesToHoursAndMinutes(hours.total)}
                     </div>
                     <div className="text-sm text-gray-500">Total Hours</div>
                   </div>
@@ -707,7 +792,7 @@ const ManagerEmployeeScheduleView = () => {
       {isModalOpen && selectedDayDate && (
         <DayDetailModal
           isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
+          onClose={handleCloseModal}
           selectedDate={selectedDayDate}
           shifts={selectedDayShifts}
           employeeName={getSelectedEmployeeName()}
