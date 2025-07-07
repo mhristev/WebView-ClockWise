@@ -442,14 +442,45 @@ const MonthlyCalendar = ({
               {/* Shifts */}
               <div className="space-y-1">
                 {day.shifts.slice(0, 2).map((shift) => {
-                  const startTime = parseTimestamp(shift.startTime);
-                  const endTime = parseTimestamp(shift.endTime);
-                  const startTimeStr = formatTime(startTime);
-                  const endTimeStr = formatTime(endTime);
+                  // Use work session times if available, otherwise use scheduled times
+                  let displayStartTime, displayEndTime, timeSource;
 
-                  // Calculate shift duration
-                  const durationMinutes = (endTime - startTime) / (1000 * 60);
-                  const durationHours = (durationMinutes / 60).toFixed(1);
+                  if (shift.workSession && shift.workSession.clockInTime) {
+                    // Use actual work session times
+                    displayStartTime = parseTimestamp(
+                      shift.workSession.clockInTime
+                    );
+                    displayEndTime = shift.workSession.clockOutTime
+                      ? parseTimestamp(shift.workSession.clockOutTime)
+                      : null;
+                    timeSource = "actual";
+                  } else {
+                    // Fallback to scheduled times
+                    displayStartTime = parseTimestamp(shift.startTime);
+                    displayEndTime = parseTimestamp(shift.endTime);
+                    timeSource = "scheduled";
+                  }
+
+                  const startTimeStr = formatTime(displayStartTime);
+                  const endTimeStr = displayEndTime
+                    ? formatTime(displayEndTime)
+                    : "In Progress";
+
+                  // Calculate duration based on available times
+                  let durationMinutes = 0;
+                  let durationHours = "0.0";
+
+                  if (displayEndTime) {
+                    durationMinutes =
+                      (displayEndTime - displayStartTime) / (1000 * 60);
+                    durationHours = (durationMinutes / 60).toFixed(1);
+                  } else if (timeSource === "scheduled") {
+                    // For scheduled times without work session, calculate planned duration
+                    const scheduledEnd = parseTimestamp(shift.endTime);
+                    durationMinutes =
+                      (scheduledEnd - displayStartTime) / (1000 * 60);
+                    durationHours = (durationMinutes / 60).toFixed(1);
+                  }
 
                   // Check work session status
                   const hasWorkSession = shift.workSession;
@@ -457,6 +488,26 @@ const MonthlyCalendar = ({
                     hasWorkSession && shift.workSession.confirmed;
                   const needsApproval =
                     hasWorkSession && !shift.workSession.confirmed;
+                  const isInProgress =
+                    hasWorkSession &&
+                    shift.workSession.clockInTime &&
+                    !shift.workSession.clockOutTime;
+
+                  // Create detailed tooltip
+                  const tooltip = [
+                    `${
+                      timeSource === "actual" ? "Actual" : "Scheduled"
+                    }: ${startTimeStr} - ${endTimeStr}`,
+                    `Duration: ${durationHours}h`,
+                    `Role: ${shift.role}`,
+                    hasWorkSession
+                      ? isConfirmed
+                        ? "✓ Confirmed"
+                        : isInProgress
+                        ? "🕒 In Progress"
+                        : "⚠ Needs Approval"
+                      : "⏱ No Work Session",
+                  ].join(" • ");
 
                   return (
                     <div
@@ -466,23 +517,20 @@ const MonthlyCalendar = ({
                           ? "bg-green-600 text-white"
                           : needsApproval
                           ? "bg-amber-500 text-white"
+                          : isInProgress
+                          ? "bg-blue-500 text-white"
                           : "bg-blue-600 text-white"
                       }`}
-                      title={`${startTimeStr} - ${endTimeStr} (${durationHours}h) - ${
-                        shift.role
-                      }${
-                        hasWorkSession
-                          ? isConfirmed
-                            ? " ✓ Confirmed"
-                            : " ⚠ Needs Approval"
-                          : " ⏱ No Work Session"
-                      }`}
+                      title={tooltip}
                     >
                       <div className="font-medium text-center">
                         {startTimeStr} - {endTimeStr}
                       </div>
                       <div className="text-xs truncate text-center opacity-90">
                         {shift.role} ({durationHours}h)
+                        {timeSource === "actual" && (
+                          <span className="ml-1 font-bold">🕒</span>
+                        )}
                       </div>
 
                       {/* Work session indicator */}
@@ -490,6 +538,8 @@ const MonthlyCalendar = ({
                         <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full border border-white text-xs flex items-center justify-center">
                           {isConfirmed ? (
                             <span className="text-white text-xs">✓</span>
+                          ) : isInProgress ? (
+                            <span className="text-white text-xs">⏰</span>
                           ) : (
                             <span className="text-white text-xs">!</span>
                           )}

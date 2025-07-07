@@ -154,22 +154,58 @@ const DayDetailModal = ({
 
   // Update local shift state when work session is updated
   const updateLocalShift = (updatedWorkSession) => {
+    console.log(
+      "[DayDetailModal] Updating local shift with work session:",
+      updatedWorkSession
+    );
+
     setLocalShifts((prevShifts) =>
-      prevShifts.map((shift) =>
-        shift.workSession && shift.workSession.id === updatedWorkSession.id
-          ? {
-              ...shift,
-              workSession: {
-                ...shift.workSession,
-                ...updatedWorkSession,
-                confirmed: true, // Ensure confirmed status is set
-                confirmedBy: updatedWorkSession.confirmedBy || user.id,
-                confirmedAt:
-                  updatedWorkSession.confirmedAt || new Date().toISOString(),
-              },
-            }
-          : shift
-      )
+      prevShifts.map((shift) => {
+        // Check if this shift has the work session we're updating
+        if (
+          shift.workSession &&
+          shift.workSession.id === updatedWorkSession.id
+        ) {
+          console.log("[DayDetailModal] Updating shift by work session ID:", {
+            shiftId: shift.id,
+            workSessionId: updatedWorkSession.id,
+          });
+          return {
+            ...shift,
+            workSession: {
+              ...shift.workSession, // Preserve existing work session data
+              ...updatedWorkSession, // Override with updated data
+              confirmed: true, // Ensure confirmed status is set
+              confirmedBy: updatedWorkSession.confirmedBy || user.id,
+              confirmedAt:
+                updatedWorkSession.confirmedAt || new Date().toISOString(),
+              // Preserve the session note if it exists and wasn't included in the update
+              note: updatedWorkSession.note || shift.workSession.note,
+            },
+          };
+        }
+        // Also check if this shift's ID matches the updated work session's shift ID
+        else if (shift.id === updatedWorkSession.shiftId) {
+          console.log("[DayDetailModal] Updating shift by shift ID:", {
+            shiftId: shift.id,
+            workSessionShiftId: updatedWorkSession.shiftId,
+          });
+          return {
+            ...shift,
+            workSession: {
+              ...shift.workSession, // Preserve existing work session data
+              ...updatedWorkSession, // Override with updated data
+              confirmed: true,
+              confirmedBy: updatedWorkSession.confirmedBy || user.id,
+              confirmedAt:
+                updatedWorkSession.confirmedAt || new Date().toISOString(),
+              // Preserve the session note if it exists and wasn't included in the update
+              note: updatedWorkSession.note || shift.workSession.note,
+            },
+          };
+        }
+        return shift;
+      })
     );
   };
 
@@ -211,7 +247,19 @@ const DayDetailModal = ({
         console.log(
           "[DayDetailModal] Notifying parent component of work session update"
         );
-        onWorkSessionUpdate(updatedWorkSession);
+        // Include shift ID in the notification to help parent component identify the shift
+        const workSessionWithShiftInfo = {
+          ...updatedWorkSession,
+          shiftId:
+            updatedWorkSession.shiftId ||
+            localShifts.find((s) => s.workSession?.id === updatedWorkSession.id)
+              ?.id,
+        };
+        console.log(
+          "[DayDetailModal] Sending work session with shift info:",
+          workSessionWithShiftInfo
+        );
+        onWorkSessionUpdate(workSessionWithShiftInfo);
       }
 
       setError(null);
@@ -279,7 +327,19 @@ const DayDetailModal = ({
 
       // Notify parent component about the update
       if (onWorkSessionUpdate) {
-        onWorkSessionUpdate(updatedWorkSession);
+        // Include shift ID in the notification to help parent component identify the shift
+        const workSessionWithShiftInfo = {
+          ...updatedWorkSession,
+          shiftId:
+            updatedWorkSession.shiftId ||
+            localShifts.find((s) => s.workSession?.id === updatedWorkSession.id)
+              ?.id,
+        };
+        console.log(
+          "[DayDetailModal] Sending modified work session with shift info:",
+          workSessionWithShiftInfo
+        );
+        onWorkSessionUpdate(workSessionWithShiftInfo);
       }
 
       cancelEditing();
@@ -567,7 +627,7 @@ const DayDetailModal = ({
                         )}
 
                         {/* Session Note - Always Read-only for managers */}
-                        {shift.workSession.sessionNote && (
+                        {shift.workSession.note && (
                           <div className="bg-gray-50 border border-gray-200 rounded-md p-3 mt-3">
                             <div className="flex items-start justify-between mb-2">
                               <div className="flex items-start gap-2">
@@ -585,7 +645,7 @@ const DayDetailModal = ({
                                   </div>
                                   <div className="bg-white border border-gray-200 rounded-md p-2">
                                     <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                                      {shift.workSession.sessionNote.content}
+                                      {shift.workSession.note.noteContent}
                                     </p>
                                   </div>
                                 </div>
@@ -595,7 +655,7 @@ const DayDetailModal = ({
                         )}
 
                         {/* Show message if no session note exists */}
-                        {!shift.workSession.sessionNote && isManagerOrAdmin && (
+                        {!shift.workSession.note && isManagerOrAdmin && (
                           <div className="bg-gray-50 border border-gray-200 rounded-md p-3 mt-3">
                             <div className="flex items-center gap-2">
                               <FileText className="h-4 w-4 text-gray-400" />

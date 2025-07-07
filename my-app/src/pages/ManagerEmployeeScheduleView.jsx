@@ -136,7 +136,12 @@ const ManagerEmployeeScheduleView = () => {
           selectedDate.year
         ),
         {
-          headers: getAuthHeaders(),
+          headers: {
+            ...getAuthHeaders(),
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            Pragma: "no-cache",
+            Expires: "0",
+          },
         }
       );
 
@@ -152,19 +157,36 @@ const ManagerEmployeeScheduleView = () => {
       console.log("Fetched monthly schedule:", data);
 
       // Log details of each shift and its work session
-      data.forEach((week) => {
+      data.forEach((week, weekIndex) => {
         if (week.shifts && week.shifts.length > 0) {
-          console.log(`--- Week starting: ${week.weekStartDate} ---`);
-          week.shifts.forEach((shift) => {
-            console.log("Shift Details:", {
+          console.log(
+            `--- Week ${weekIndex + 1} starting: ${week.weekStartDate} ---`
+          );
+          week.shifts.forEach((shift, shiftIndex) => {
+            console.log(`Shift ${shiftIndex + 1} Details:`, {
               shiftId: shift.id,
-              startTime: shift.startTime,
-              endTime: shift.endTime,
+              scheduledTime: `${shift.startTime} - ${shift.endTime}`,
+              role: shift.role,
+              hasWorkSession: !!shift.workSession,
               workSession: shift.workSession
-                ? shift.workSession
+                ? {
+                    id: shift.workSession.id,
+                    clockInTime: shift.workSession.clockInTime,
+                    clockOutTime: shift.workSession.clockOutTime,
+                    confirmed: shift.workSession.confirmed,
+                    sessionNote: shift.workSession.sessionNote
+                      ? "Present"
+                      : "None",
+                  }
                 : "No work session",
             });
           });
+        } else {
+          console.log(
+            `--- Week ${weekIndex + 1} starting: ${
+              week.weekStartDate
+            } --- NO SHIFTS`
+          );
         }
       });
 
@@ -339,41 +361,96 @@ const ManagerEmployeeScheduleView = () => {
     setScheduleData((prevData) =>
       prevData.map((week) => ({
         ...week,
-        shifts: week.shifts.map((shift) =>
-          shift.workSession && shift.workSession.id === updatedWorkSession.id
-            ? {
-                ...shift,
-                workSession: {
-                  ...shift.workSession,
-                  ...updatedWorkSession,
-                  confirmed: true,
-                },
+        shifts: week.shifts.map((shift) => {
+          // Check if this shift has the work session we're updating
+          if (
+            shift.workSession &&
+            shift.workSession.id === updatedWorkSession.id
+          ) {
+            console.log(
+              "[ManagerEmployeeScheduleView] Updating shift work session:",
+              {
+                shiftId: shift.id,
+                oldWorkSession: shift.workSession,
+                newWorkSession: updatedWorkSession,
               }
-            : shift
-        ),
+            );
+            return {
+              ...shift,
+              workSession: {
+                ...shift.workSession, // Preserve existing work session data
+                ...updatedWorkSession, // Override with updated data
+                confirmed: true,
+                // Preserve the session note if it exists and wasn't included in the update
+                note: updatedWorkSession.note || shift.workSession.note,
+              },
+            };
+          }
+          // Also check if this shift's ID matches the updated work session's shift ID
+          else if (shift.id === updatedWorkSession.shiftId) {
+            console.log(
+              "[ManagerEmployeeScheduleView] Updating shift by shiftId:",
+              {
+                shiftId: shift.id,
+                workSessionShiftId: updatedWorkSession.shiftId,
+                newWorkSession: updatedWorkSession,
+              }
+            );
+            return {
+              ...shift,
+              workSession: {
+                ...shift.workSession, // Preserve existing work session data
+                ...updatedWorkSession, // Override with updated data
+                confirmed: true,
+                // Preserve the session note if it exists and wasn't included in the update
+                note: updatedWorkSession.note || shift.workSession.note,
+              },
+            };
+          }
+          return shift;
+        }),
       }))
     );
 
     // Also update the selected day shifts if modal is open
     if (selectedDayShifts.length > 0) {
       setSelectedDayShifts((prevShifts) =>
-        prevShifts.map((shift) =>
-          shift.workSession && shift.workSession.id === updatedWorkSession.id
-            ? {
-                ...shift,
-                workSession: {
-                  ...shift.workSession,
-                  ...updatedWorkSession,
-                  confirmed: true,
-                },
+        prevShifts.map((shift) => {
+          if (
+            (shift.workSession &&
+              shift.workSession.id === updatedWorkSession.id) ||
+            shift.id === updatedWorkSession.shiftId
+          ) {
+            console.log(
+              "[ManagerEmployeeScheduleView] Updating selected day shift:",
+              {
+                shiftId: shift.id,
+                newWorkSession: updatedWorkSession,
               }
-            : shift
-        )
+            );
+            return {
+              ...shift,
+              workSession: {
+                ...shift.workSession, // Preserve existing work session data
+                ...updatedWorkSession, // Override with updated data
+                confirmed: true,
+                // Preserve the session note if it exists and wasn't included in the update
+                note: updatedWorkSession.note || shift.workSession.note,
+              },
+            };
+          }
+          return shift;
+        })
       );
     }
 
-    // Optionally, you can also refetch the entire schedule to ensure consistency
-    // fetchMonthlySchedule();
+    // Add a small delay then refetch to ensure backend consistency
+    setTimeout(() => {
+      console.log(
+        "[ManagerEmployeeScheduleView] Refetching schedule for consistency"
+      );
+      fetchMonthlySchedule();
+    }, 1000);
   };
 
   const exportToPDF = () => {
