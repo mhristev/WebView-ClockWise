@@ -2317,6 +2317,44 @@ function ScheduleApp() {
     saveAs(blob, fileName);
   };
 
+  // Calculate scheduled hours for an employee
+  const calculateScheduledHours = (employeeId) => {
+    const currentWeekShifts = getCurrentWeekShifts();
+    const employeeShifts = currentWeekShifts[employeeId] || [];
+
+    let totalHours = 0;
+    employeeShifts.forEach((shift) => {
+      try {
+        // Parse the duration from the shift (e.g., "5h 30min" or "8h")
+        if (shift.duration) {
+          const duration = shift.duration;
+          const hoursMatch = duration.match(/(\d+)h/);
+          const minutesMatch = duration.match(/(\d+)min/);
+
+          let hours = hoursMatch ? parseInt(hoursMatch[1]) : 0;
+          let minutes = minutesMatch ? parseInt(minutesMatch[1]) : 0;
+
+          totalHours += hours + minutes / 60;
+        } else {
+          // Fallback: calculate from start and end time if available
+          if (shift.startTime && shift.endTime) {
+            const start = parseTimestamp(shift.startTime);
+            const end = parseTimestamp(shift.endTime);
+            const durationMs = end - start;
+            const durationHours = durationMs / (1000 * 60 * 60);
+            totalHours += durationHours > 0 ? durationHours : 0;
+          }
+        }
+      } catch (error) {
+        console.error("Error calculating shift duration:", error);
+        // Use a fallback of 8 hours for shifts with parsing errors
+        totalHours += 8;
+      }
+    });
+
+    return Math.round(totalHours * 10) / 10; // Round to 1 decimal place
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -2651,8 +2689,35 @@ function ScheduleApp() {
                                       .toLowerCase()
                                       .replace(/_/g, " ")
                                   : "staff"}
-                              </span>{" "}
-                              • {employee.hours}
+                              </span>
+                              {(() => {
+                                const contractHours =
+                                  employee.contractHours || 40;
+                                const scheduledHours = calculateScheduledHours(
+                                  employee.id
+                                );
+
+                                // Determine color based on comparison
+                                let colorClass = "text-gray-600"; // Default
+                                if (scheduledHours < contractHours) {
+                                  colorClass = "text-red-600"; // Below contract hours
+                                } else if (scheduledHours > contractHours) {
+                                  colorClass = "text-green-600"; // Above contract hours
+                                }
+
+                                return (
+                                  <div>
+                                    <div className="text-[7px] sm:text-[8px] lg:text-[9px] text-gray-700 font-medium">
+                                      Contract: {contractHours}h/week
+                                    </div>
+                                    <div
+                                      className={`text-[7px] sm:text-[8px] lg:text-[9px] font-medium ${colorClass}`}
+                                    >
+                                      Scheduled: {scheduledHours}h
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                               {employee.isGhost && (
                                 <span className="text-red-500 ml-1">
                                   • No longer in business unit

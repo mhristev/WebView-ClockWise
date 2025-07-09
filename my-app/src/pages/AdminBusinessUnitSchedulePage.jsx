@@ -163,18 +163,25 @@ const AdminBusinessUnitSchedulePage = () => {
       );
 
       // Format employees for display
-      const formattedEmployees = businessUnitEmployees.map((emp) => ({
-        id: emp.id || emp.userId || `emp-${Math.random()}`,
-        name:
-          `${emp.firstName || ""} ${emp.lastName || ""}`.trim() ||
-          emp.username ||
-          "Unknown Employee",
-        role: emp.role || "EMPLOYEE",
-        hours: emp.workingHours || "40h/week",
-        businessUnitName: emp.businessUnitName || businessUnit.name,
-        isCurrentUser: user && emp.id === user.id,
-        isGhost: false,
-      }));
+      const formattedEmployees = businessUnitEmployees.map((emp) => {
+        // Format contract hours - use contractHours from backend if available, otherwise default
+        const contractHours = emp.contractHours || 40;
+        const hoursDisplay = `${contractHours}h/week`;
+
+        return {
+          id: emp.id || emp.userId || `emp-${Math.random()}`,
+          name:
+            `${emp.firstName || ""} ${emp.lastName || ""}`.trim() ||
+            emp.username ||
+            "Unknown Employee",
+          role: emp.role || "EMPLOYEE",
+          hours: hoursDisplay,
+          contractHours: contractHours, // Store the numeric value for calculations
+          businessUnitName: emp.businessUnitName || businessUnit.name,
+          isCurrentUser: user && emp.id === user.id,
+          isGhost: false,
+        };
+      });
 
       // Sort employees alphabetically
       const sortedEmployees = formattedEmployees.sort((a, b) =>
@@ -633,9 +640,87 @@ const AdminBusinessUnitSchedulePage = () => {
 
   // Get shift for employee on specific day
   const getShiftForDay = (employeeId, day) => {
-    const shifts = getCurrentWeekShifts();
-    const employeeShifts = shifts[employeeId] || [];
+    const currentShifts = getCurrentWeekShifts();
+    const employeeShifts = currentShifts[employeeId] || [];
     return employeeShifts.find((shift) => shift.day === day);
+  };
+
+  // Calculate scheduled hours for an employee for the current week
+  const calculateScheduledHours = (employeeId) => {
+    const currentShifts = getCurrentWeekShifts();
+    const employeeShifts = currentShifts[employeeId] || [];
+
+    let totalMinutes = 0;
+
+    employeeShifts.forEach((shift) => {
+      try {
+        // Parse start and end times from the shift
+        const startTimeStr = shift.startTime; // Format: "08:00"
+        const endTimeStr = shift.endTime; // Format: "14:00"
+
+        if (startTimeStr && endTimeStr) {
+          // Parse hours and minutes
+          const [startHour, startMin] = startTimeStr
+            .split(":")
+            .map((num) => parseInt(num));
+          const [endHour, endMin] = endTimeStr
+            .split(":")
+            .map((num) => parseInt(num));
+
+          // Calculate duration in minutes
+          let durationHours = endHour - startHour;
+          let durationMinutes = endMin - startMin;
+
+          // Handle next day scenario (e.g., 22:00 to 06:00)
+          if (durationHours < 0) {
+            durationHours += 24;
+          }
+
+          // Handle negative minutes
+          if (durationMinutes < 0) {
+            durationHours--;
+            durationMinutes += 60;
+          }
+
+          const shiftMinutes = durationHours * 60 + durationMinutes;
+          totalMinutes += shiftMinutes;
+        }
+      } catch (error) {
+        console.error(
+          "Error calculating scheduled hours for shift:",
+          shift,
+          error
+        );
+      }
+    });
+
+    return totalMinutes / 60; // Return hours as decimal
+  };
+
+  // Parse contract hours from employee object or string format
+  const parseContractHours = (employee) => {
+    // If we have the numeric contractHours field, use it directly
+    if (employee && typeof employee.contractHours === "number") {
+      return employee.contractHours;
+    }
+
+    // Otherwise, parse from the hours string format
+    const hoursString =
+      employee?.hours || (typeof employee === "string" ? employee : "40h/week");
+    if (!hoursString || typeof hoursString !== "string") return 40; // Default to 40 hours
+    const match = hoursString.match(/(\d+(\.\d+)?)/);
+    return match ? parseFloat(match[1]) : 40; // Default to 40 hours
+  };
+
+  // Format hours for display (e.g., 37.5 -> "37h 30min")
+  const formatHoursDisplay = (hours) => {
+    const wholeHours = Math.floor(hours);
+    const minutes = Math.round((hours - wholeHours) * 60);
+
+    if (minutes === 0) {
+      return `${wholeHours}h`;
+    }
+    return `${wholeHours}h ${minutes}min`;
   };
 
   // Handle business unit selection
@@ -1108,7 +1193,42 @@ const AdminBusinessUnitSchedulePage = () => {
                               )}
                             </div>
                             <div className="text-xs text-gray-500 truncate">
-                              {employee.role}
+                              <div className="capitalize">
+                                {employee.role
+                                  ? employee.role
+                                      .toLowerCase()
+                                      .replace(/_/g, " ")
+                                  : "staff"}
+                              </div>
+                              {(() => {
+                                const contractHours =
+                                  parseContractHours(employee);
+                                const scheduledHours = calculateScheduledHours(
+                                  employee.id
+                                );
+
+                                // Determine color based on comparison
+                                let colorClass = "text-gray-600"; // Default
+                                if (scheduledHours < contractHours) {
+                                  colorClass = "text-red-600"; // Below contract hours
+                                } else if (scheduledHours > contractHours) {
+                                  colorClass = "text-green-600"; // Above contract hours
+                                }
+
+                                return (
+                                  <div>
+                                    <div className="text-[9px] text-gray-700 font-medium">
+                                      Contract: {contractHours}h/week
+                                    </div>
+                                    <div
+                                      className={`text-[9px] font-medium ${colorClass}`}
+                                    >
+                                      Scheduled:{" "}
+                                      {formatHoursDisplay(scheduledHours)}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>
