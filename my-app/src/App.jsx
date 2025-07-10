@@ -18,6 +18,7 @@ import AdminBusinessUnitSchedulePage from "./pages/AdminBusinessUnitSchedulePage
 import AdminOrganizationManagement from "./pages/AdminOrganizationManagement";
 import ManagerEmployeeScheduleView from "./pages/ManagerEmployeeScheduleView";
 import BusinessUnitCalendarView from "./pages/BusinessUnitCalendarView";
+import AdminPaycheckGenerator from "./pages/AdminPaycheckGenerator";
 
 function App() {
   return (
@@ -74,6 +75,14 @@ function App() {
                       element={
                         <ProtectedRoute requiredRole="ADMIN">
                           <AdminBusinessUnitSchedulePage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/paychecks"
+                      element={
+                        <ProtectedRoute requiredRole="ADMIN">
+                          <AdminPaycheckGenerator />
                         </ProtectedRoute>
                       }
                     />

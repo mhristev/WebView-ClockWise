@@ -46,8 +46,10 @@ export const API_ENDPOINTS_CONFIG = {
   // User endpoints
   me: () => `${USER_BASE_URL}/users/me`,
   restaurantUsers: (restaurantId) => `${USER_BASE_URL}/users/business-unit/${restaurantId}`,
+  getEmployeesByBusinessUnit: (businessUnitId) => `${USER_BASE_URL}/users/business-unit/${businessUnitId}`,
   
   // Organization endpoints
+  getAllBusinessUnits: () => `${ORGANIZATION_BASE_URL}/business-units`,
   businessUnit: (businessUnitId) => `${ORGANIZATION_BASE_URL}/business-units/${businessUnitId}`,
   companiesWithBusinessUnits: () => `${ORGANIZATION_BASE_URL}/companies/with-business-units`,
   

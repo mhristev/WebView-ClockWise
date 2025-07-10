@@ -14,6 +14,7 @@ import {
   ClipboardList,
   ChevronDown,
   ChevronRight,
+  DollarSign,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 
@@ -94,6 +95,11 @@ const Layout = ({ children }) => {
                 name: "Business Unit Schedules",
                 path: "/admin/business-unit-schedules",
                 icon: ClipboardList,
+              },
+              {
+                name: "Paycheck Generator",
+                path: "/admin/paychecks",
+                icon: DollarSign,
               },
             ],
           },
