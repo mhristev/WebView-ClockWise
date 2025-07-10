@@ -76,6 +76,9 @@ export const API_ENDPOINTS_CONFIG = {
   // Work session management endpoints
   unconfirmedWorkSessions: (businessUnitId) => 
     `${PLANNING_BASE_URL}/work-sessions/management/business-units/${businessUnitId}/unconfirmed`,
+  // New comprehensive endpoint for business unit calendar view
+  comprehensiveShifts: (businessUnitId, startDate, endDate) =>
+    `${PLANNING_BASE_URL}/business-units/${businessUnitId}/shifts/comprehensive?startDate=${startDate}&endDate=${endDate}`,
   confirmWorkSession: () => 
     `${PLANNING_BASE_URL}/work-sessions/management/confirm`,
   modifyWorkSession: () => 

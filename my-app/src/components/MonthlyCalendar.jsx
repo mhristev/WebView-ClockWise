@@ -68,10 +68,23 @@ const parseTimestamp = (timestamp) => {
 
 // Helper function to format time
 const formatTime = (date) => {
-  if (!date) return "N/A";
-  const hours = date.getHours().toString().padStart(2, "0");
-  const minutes = date.getMinutes().toString().padStart(2, "0");
-  return `${hours}:${minutes}`;
+  return date.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+// Helper function to determine if a work session should be treated as confirmed
+const isWorkSessionConfirmed = (workSession) => {
+  // If confirmation field is explicitly present and true, use it
+  if (typeof workSession.confirmed === "boolean") {
+    return workSession.confirmed;
+  }
+
+  // Since the backend doesn't return confirmation fields in the API response,
+  // and we need manager approval for work sessions, treat all as unconfirmed
+  // unless explicitly marked as confirmed (e.g., after a confirmation action)
+  return false;
 };
 
 const MonthlyCalendar = ({
@@ -485,9 +498,8 @@ const MonthlyCalendar = ({
                   // Check work session status
                   const hasWorkSession = shift.workSession;
                   const isConfirmed =
-                    hasWorkSession && shift.workSession.confirmed;
-                  const needsApproval =
-                    hasWorkSession && !shift.workSession.confirmed;
+                    hasWorkSession && isWorkSessionConfirmed(shift.workSession);
+                  const needsApproval = hasWorkSession && !isConfirmed;
                   const isInProgress =
                     hasWorkSession &&
                     shift.workSession.clockInTime &&

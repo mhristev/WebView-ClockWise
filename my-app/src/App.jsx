@@ -17,6 +17,7 @@ import AdminUserManagement from "./pages/AdminUserManagement";
 import AdminBusinessUnitSchedulePage from "./pages/AdminBusinessUnitSchedulePage";
 import AdminOrganizationManagement from "./pages/AdminOrganizationManagement";
 import ManagerEmployeeScheduleView from "./pages/ManagerEmployeeScheduleView";
+import BusinessUnitCalendarView from "./pages/BusinessUnitCalendarView";
 
 function App() {
   return (
@@ -43,6 +44,14 @@ function App() {
                     <Route
                       path="/schedule-view"
                       element={<ManagerEmployeeScheduleView />}
+                    />
+                    <Route
+                      path="/business-unit-calendar"
+                      element={
+                        <ProtectedRoute requiredRole={["MANAGER", "ADMIN"]}>
+                          <BusinessUnitCalendarView />
+                        </ProtectedRoute>
+                      }
                     />
                     <Route
                       path="/admin/users"

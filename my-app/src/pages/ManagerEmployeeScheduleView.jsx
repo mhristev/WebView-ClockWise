@@ -173,7 +173,7 @@ const ManagerEmployeeScheduleView = () => {
                     id: shift.workSession.id,
                     clockInTime: shift.workSession.clockInTime,
                     clockOutTime: shift.workSession.clockOutTime,
-                    confirmed: shift.workSession.confirmed,
+                    confirmed: isWorkSessionConfirmed(shift.workSession),
                     sessionNote: shift.workSession.sessionNote
                       ? "Present"
                       : "None",
@@ -238,6 +238,19 @@ const ManagerEmployeeScheduleView = () => {
     return employee
       ? `${employee.firstName} ${employee.lastName}`
       : "Unknown Employee";
+  };
+
+  // Helper function to determine if a work session should be treated as confirmed
+  const isWorkSessionConfirmed = (workSession) => {
+    // If confirmation field is explicitly present and true, use it
+    if (typeof workSession.confirmed === "boolean") {
+      return workSession.confirmed;
+    }
+
+    // Since the backend doesn't return confirmation fields in the API response,
+    // and we need manager approval for work sessions, treat all as unconfirmed
+    // unless explicitly marked as confirmed (e.g., after a confirmation action)
+    return false;
   };
 
   // Helper function to parse timestamps (same as in MonthlyCalendar)
@@ -351,10 +364,15 @@ const ManagerEmployeeScheduleView = () => {
   };
 
   // Handle work session updates to refresh the schedule data
-  const handleWorkSessionUpdate = async (updatedWorkSession) => {
+  const handleWorkSessionUpdate = async (
+    updatedWorkSession,
+    isConfirmation = false
+  ) => {
     console.log(
       "[ManagerEmployeeScheduleView] Work session updated:",
-      updatedWorkSession
+      updatedWorkSession,
+      "isConfirmation:",
+      isConfirmation
     );
 
     // Update the local schedule data immediately
@@ -375,15 +393,26 @@ const ManagerEmployeeScheduleView = () => {
                 newWorkSession: updatedWorkSession,
               }
             );
+
+            const workSessionUpdate = {
+              ...shift.workSession, // Preserve existing work session data
+              ...updatedWorkSession, // Override with updated data
+              // Preserve the session note if it exists and wasn't included in the update
+              note: updatedWorkSession.note || shift.workSession.note,
+            };
+
+            // Only set confirmation fields if this is a confirmation operation
+            if (isConfirmation) {
+              workSessionUpdate.confirmed = true;
+              workSessionUpdate.confirmedBy =
+                updatedWorkSession.confirmedBy || user?.id;
+              workSessionUpdate.confirmedAt =
+                updatedWorkSession.confirmedAt || new Date().toISOString();
+            }
+
             return {
               ...shift,
-              workSession: {
-                ...shift.workSession, // Preserve existing work session data
-                ...updatedWorkSession, // Override with updated data
-                confirmed: true,
-                // Preserve the session note if it exists and wasn't included in the update
-                note: updatedWorkSession.note || shift.workSession.note,
-              },
+              workSession: workSessionUpdate,
             };
           }
           // Also check if this shift's ID matches the updated work session's shift ID
@@ -396,15 +425,26 @@ const ManagerEmployeeScheduleView = () => {
                 newWorkSession: updatedWorkSession,
               }
             );
+
+            const workSessionUpdate = {
+              ...shift.workSession, // Preserve existing work session data
+              ...updatedWorkSession, // Override with updated data
+              // Preserve the session note if it exists and wasn't included in the update
+              note: updatedWorkSession.note || shift.workSession.note,
+            };
+
+            // Only set confirmation fields if this is a confirmation operation
+            if (isConfirmation) {
+              workSessionUpdate.confirmed = true;
+              workSessionUpdate.confirmedBy =
+                updatedWorkSession.confirmedBy || user?.id;
+              workSessionUpdate.confirmedAt =
+                updatedWorkSession.confirmedAt || new Date().toISOString();
+            }
+
             return {
               ...shift,
-              workSession: {
-                ...shift.workSession, // Preserve existing work session data
-                ...updatedWorkSession, // Override with updated data
-                confirmed: true,
-                // Preserve the session note if it exists and wasn't included in the update
-                note: updatedWorkSession.note || shift.workSession.note,
-              },
+              workSession: workSessionUpdate,
             };
           }
           return shift;
@@ -428,15 +468,26 @@ const ManagerEmployeeScheduleView = () => {
                 newWorkSession: updatedWorkSession,
               }
             );
+
+            const workSessionUpdate = {
+              ...shift.workSession, // Preserve existing work session data
+              ...updatedWorkSession, // Override with updated data
+              // Preserve the session note if it exists and wasn't included in the update
+              note: updatedWorkSession.note || shift.workSession.note,
+            };
+
+            // Only set confirmation fields if this is a confirmation operation
+            if (isConfirmation) {
+              workSessionUpdate.confirmed = true;
+              workSessionUpdate.confirmedBy =
+                updatedWorkSession.confirmedBy || user?.id;
+              workSessionUpdate.confirmedAt =
+                updatedWorkSession.confirmedAt || new Date().toISOString();
+            }
+
             return {
               ...shift,
-              workSession: {
-                ...shift.workSession, // Preserve existing work session data
-                ...updatedWorkSession, // Override with updated data
-                confirmed: true,
-                // Preserve the session note if it exists and wasn't included in the update
-                note: updatedWorkSession.note || shift.workSession.note,
-              },
+              workSession: workSessionUpdate,
             };
           }
           return shift;
@@ -444,14 +495,33 @@ const ManagerEmployeeScheduleView = () => {
       );
     }
 
-    // Add a small delay then refetch to ensure backend consistency
-    setTimeout(() => {
-      console.log(
-        "[ManagerEmployeeScheduleView] Refetching schedule for consistency"
-      );
-      fetchMonthlySchedule();
-    }, 1000);
+    // For work session modifications (not confirmations), refetch data to ensure consistency
+    // Skip refetch for confirmations to avoid overriding the local confirmation state
+    if (!isConfirmation) {
+      // Add a small delay then refetch to ensure backend consistency
+      setTimeout(() => {
+        console.log(
+          "[ManagerEmployeeScheduleView] Refetching schedule for consistency"
+        );
+        fetchMonthlySchedule();
+      }, 1000);
+    }
   };
+
+  // Create a data signature that changes when work session confirmations change
+  const dataSignature = React.useMemo(() => {
+    const workSessionIds = [];
+    const confirmationStates = [];
+    scheduleData.forEach((week) => {
+      week.shifts.forEach((shift) => {
+        if (shift.workSession) {
+          workSessionIds.push(shift.workSession.id);
+          confirmationStates.push(shift.workSession.confirmed || false);
+        }
+      });
+    });
+    return `${workSessionIds.join(",")}-${confirmationStates.join(",")}`;
+  }, [scheduleData]);
 
   const exportToPDF = () => {
     try {
@@ -856,6 +926,7 @@ const ManagerEmployeeScheduleView = () => {
             </div>
           ) : (
             <MonthlyCalendar
+              key={`${selectedEmployee}-${selectedDate.year}-${selectedDate.month}-${dataSignature}`}
               scheduleData={scheduleData}
               selectedDate={selectedDate}
               employeeName={getSelectedEmployeeName()}

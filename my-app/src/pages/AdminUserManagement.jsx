@@ -115,7 +115,7 @@ const AdminUserManagement = () => {
         username: userData.username || "",
         email: userData.email || "",
         phoneNumber: userData.phoneNumber || "",
-        role: userData.role || "EMPLOYEE",
+        role: userData.role != null ? userData.role : "EMPLOYEE",
         userStatus: userData.userStatus || "ACTIVE",
         businessUnitId: userData.businessUnitId || null,
         businessUnitName: userData.businessUnitName || "Unassigned",

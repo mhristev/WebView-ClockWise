@@ -56,6 +56,15 @@ const Layout = ({ children }) => {
           path: "/team-management",
           icon: Users,
         },
+        ...(user?.role === "MANAGER" || user?.role === "ADMIN"
+          ? [
+              {
+                name: "Business Unit Calendar",
+                path: "/business-unit-calendar",
+                icon: Building,
+              },
+            ]
+          : []),
         {
           name: "Business Unit",
           path: "/business-unit",
