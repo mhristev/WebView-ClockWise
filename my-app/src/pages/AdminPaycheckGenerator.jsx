@@ -12,6 +12,7 @@ const AdminPaycheckGenerator = () => {
   const [paychecks, setPaychecks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [taxAmount, setTaxAmount] = useState(30);
 
   useEffect(() => {
     const fetchBusinessUnits = async () => {
@@ -59,11 +60,10 @@ const AdminPaycheckGenerator = () => {
         const employeeData = await response.json();
 
         const calculatedPaychecks = employeeData.map((employee) => {
-          const tax = 30;
           return {
             employeeId: employee.id,
             employeeName: `${employee.firstName} ${employee.lastName}`,
-            tax,
+            tax: taxAmount,
           };
         });
         setPaychecks(calculatedPaychecks);
@@ -96,7 +96,7 @@ const AdminPaycheckGenerator = () => {
       tableRows.push(row);
     });
 
-    const totalTax = paychecks.length * 30;
+    const totalTax = paychecks.length * taxAmount;
 
     autoTable(doc, {
       head: [tableColumn],
@@ -138,8 +138,8 @@ const AdminPaycheckGenerator = () => {
             </div>
           )}
 
-          <div className="flex items-center space-x-4 mb-6">
-            <div className="flex-grow">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 items-end">
+            <div className="md:col-span-2">
               <label
                 htmlFor="business-unit"
                 className="block text-sm font-medium text-gray-700 mb-1"
@@ -160,13 +160,31 @@ const AdminPaycheckGenerator = () => {
                 ))}
               </select>
             </div>
-            <button
-              onClick={handleGeneratePaychecks}
-              disabled={loading || !selectedBusinessUnit}
-              className="mt-5 px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:bg-gray-400"
-            >
-              {loading ? "Generating..." : "Generate Paychecks"}
-            </button>
+            <div>
+              <label
+                htmlFor="tax-amount"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Tax per Person (BGN)
+              </label>
+              <input
+                type="number"
+                id="tax-amount"
+                value={taxAmount}
+                onChange={(e) => setTaxAmount(Number(e.target.value))}
+                className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                min="0"
+              />
+            </div>
+            <div className="md:col-span-3 flex justify-center">
+              <button
+                onClick={handleGeneratePaychecks}
+                disabled={loading || !selectedBusinessUnit}
+                className="mt-2 px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:bg-gray-400 w-full md:w-auto"
+              >
+                {loading ? "Generating..." : "Generate Paychecks"}
+              </button>
+            </div>
           </div>
 
           {paychecks.length > 0 && (
@@ -213,7 +231,7 @@ const AdminPaycheckGenerator = () => {
                         Total Tax
                       </td>
                       <td className="px-6 py-3 text-left text-sm text-gray-800">
-                        {(paychecks.length * 30).toFixed(2)} BGN
+                        {(paychecks.length * taxAmount).toFixed(2)} BGN
                       </td>
                     </tr>
                   </tfoot>
