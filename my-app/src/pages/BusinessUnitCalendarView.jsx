@@ -574,7 +574,9 @@ const BusinessUnitCalendarView = () => {
         });
 
         const employeeName =
-          shift.employeeName || `Employee ${shift.employeeId.slice(-4)}`;
+          `${shift.employeeFirstName || ""} ${
+            shift.employeeLastName || ""
+          }`.trim() || `Employee ${shift.employeeId.slice(-4)}`;
         const scheduledTime = `${formatTime(shift.startTime)} - ${formatTime(
           shift.endTime
         )}`;

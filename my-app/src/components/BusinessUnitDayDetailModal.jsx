@@ -55,34 +55,48 @@ const BusinessUnitDayDetailModal = ({
       }))
     );
 
-    // Fetch employee names for all shifts
-    fetchEmployeeNames(shifts);
+    // Fetch employee names for all shifts from the shift object itself
+    const newEmployeesMap = new Map();
+    shifts.forEach((shift) => {
+      if (shift.employeeId) {
+        newEmployeesMap.set(shift.employeeId, {
+          firstName: shift.employeeFirstName || "",
+          lastName: shift.employeeLastName || "",
+          fullName:
+            `${shift.employeeFirstName || ""} ${
+              shift.employeeLastName || ""
+            }`.trim() || `Employee ${shift.employeeId.slice(-4)}`,
+        });
+      }
+    });
+    setEmployees(newEmployeesMap);
   }, [shifts]);
 
-  const fetchEmployeeNames = async (shiftsData) => {
-    try {
-      const employeeIds = [
-        ...new Set(shiftsData.map((shift) => shift.employeeId)),
-      ];
-      const newEmployees = new Map(employees);
+  // Removed the old fetchEmployeeNames as it's now handled directly in the useEffect
+  // const fetchEmployeeNames = async (shiftsData) => {
+  //   try {
+  //     const employeeIds = [
+  //       ...new Set(shiftsData.map((shift) => shift.employeeId)),
+  //     ];
+  //     const newEmployees = new Map(employees);
 
-      // Only fetch employees we don't already have
-      const missingEmployeeIds = employeeIds.filter((id) => !employees.has(id));
+  //     // Only fetch employees we don't already have
+  //     const missingEmployeeIds = employeeIds.filter((id) => !employees.has(id));
 
-      if (missingEmployeeIds.length > 0) {
-        // For now, we'll use placeholder names - in a real app you'd fetch from employee service
-        missingEmployeeIds.forEach((id) => {
-          newEmployees.set(id, {
-            name: `Employee ${id.slice(-4)}`,
-            role: "Staff",
-          });
-        });
-        setEmployees(newEmployees);
-      }
-    } catch (error) {
-      console.error("Error fetching employee names:", error);
-    }
-  };
+  //     if (missingEmployeeIds.length > 0) {
+  //       // For now, we'll use placeholder names - in a real app you'd fetch from employee service
+  //       missingEmployeeIds.forEach((id) => {
+  //         newEmployees.set(id, {
+  //           name: `Employee ${id.slice(-4)}`,
+  //           role: "Staff",
+  //         });
+  //       });
+  //       setEmployees(newEmployees);
+  //     }
+  //   } catch (error) {
+  //     console.error("Error fetching employee names:", error);
+  //   }
+  // };
 
   if (!isOpen) return null;
 
@@ -520,25 +534,24 @@ const BusinessUnitDayDetailModal = ({
   // Group shifts by employee for better organization
   const groupShiftsByEmployee = () => {
     const grouped = new Map();
-
     localShifts.forEach((shift) => {
       const employeeId = shift.employeeId;
       if (!grouped.has(employeeId)) {
-        grouped.set(employeeId, []);
+        // Use the full name from the employees map
+        const employeeInfo = employees.get(employeeId);
+        grouped.set(employeeId, {
+          employeeId: employeeId,
+          employeeName:
+            employeeInfo?.fullName || `Employee ${employeeId.slice(-4)}`,
+          shifts: [],
+        });
       }
-      grouped.get(employeeId).push(shift);
+      grouped.get(employeeId).shifts.push(shift);
     });
-
-    // Sort shifts within each employee group by start time
-    grouped.forEach((shifts) => {
-      shifts.sort((a, b) => {
-        const timeA = parseTimestamp(a.startTime);
-        const timeB = parseTimestamp(b.startTime);
-        return timeA - timeB;
-      });
-    });
-
-    return grouped;
+    // Sort employees by name for consistent display
+    return Array.from(grouped.values()).sort((a, b) =>
+      a.employeeName.localeCompare(b.employeeName)
+    );
   };
 
   const stats = calculateDayStats();
@@ -618,228 +631,206 @@ const BusinessUnitDayDetailModal = ({
             </div>
           ) : (
             <div className="space-y-6">
-              {Array.from(groupedShifts.entries()).map(
-                ([employeeId, employeeShifts]) => (
-                  <div
-                    key={employeeId}
-                    className="border border-gray-200 rounded-lg"
-                  >
-                    {/* Employee Header */}
-                    <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                      <div className="flex items-center">
-                        <User className="w-5 h-5 text-gray-600 mr-2" />
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {employees.get(employeeId)?.name ||
-                            `Employee ${employeeId.slice(-4)}`}
-                        </h3>
-                        <span className="ml-2 text-sm text-gray-500">
-                          {employeeShifts.length} shift
-                          {employeeShifts.length !== 1 ? "s" : ""}
-                        </span>
-                      </div>
+              {groupedShifts.map((groupedEmployee) => (
+                <div
+                  key={groupedEmployee.employeeId}
+                  className="border border-gray-200 rounded-lg"
+                >
+                  {/* Employee Header */}
+                  <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                    <div className="flex items-center">
+                      <User className="w-5 h-5 text-gray-600 mr-2" />
+                      <h3 className="text-lg font-medium text-gray-900">
+                        {groupedEmployee.employeeName}
+                      </h3>
+                      <span className="ml-2 text-sm text-gray-500">
+                        {groupedEmployee.shifts.length} shift
+                        {groupedEmployee.shifts.length !== 1 ? "s" : ""}
+                      </span>
                     </div>
+                  </div>
 
-                    {/* Employee Shifts */}
-                    <div className="p-4 space-y-4">
-                      {employeeShifts.map((shift) => (
-                        <div
-                          key={shift.id}
-                          className="border border-gray-100 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                        >
-                          {/* Shift Header */}
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center">
-                              <Clock className="w-4 h-4 text-blue-600 mr-2" />
-                              <span className="font-medium text-gray-900">
-                                {formatTime(shift.startTime)} -{" "}
-                                {formatTime(shift.endTime)}
+                  {/* Shifts for this employee */}
+                  <div className="p-4 space-y-4">
+                    {groupedEmployee.shifts.map((shift) => (
+                      <div
+                        key={shift.id}
+                        className="border border-gray-100 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                      >
+                        {/* Shift Header */}
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center">
+                            <Clock className="w-4 h-4 text-blue-600 mr-2" />
+                            <span className="font-medium text-gray-900">
+                              {formatTime(shift.startTime)} -{" "}
+                              {formatTime(shift.endTime)}
+                            </span>
+                            {shift.position && (
+                              <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                {shift.position}
                               </span>
-                              {shift.position && (
-                                <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                                  {shift.position}
-                                </span>
-                              )}
-                            </div>
-                            {shift.workSession && (
-                              <div className="flex items-center">
-                                {isWorkSessionConfirmed(shift.workSession) ? (
-                                  <div className="flex items-center text-green-600">
-                                    <CheckCircle className="w-4 h-4 mr-1" />
-                                    <span className="text-sm">Confirmed</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Work Session Details */}
+                        {shift.workSession ? (
+                          <div className="space-y-3">
+                            {editingWorkSession === shift.id ? (
+                              // Edit Mode
+                              <div className="bg-blue-50 p-3 rounded-md">
+                                <div className="grid grid-cols-2 gap-4 mb-3">
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                      Clock In Time
+                                    </label>
+                                    <input
+                                      type="time"
+                                      value={editForm.clockInTime}
+                                      onChange={(e) =>
+                                        setEditForm({
+                                          ...editForm,
+                                          clockInTime: e.target.value,
+                                        })
+                                      }
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                                    />
                                   </div>
-                                ) : (
-                                  <div className="flex items-center text-orange-600">
-                                    <Clock className="w-4 h-4 mr-1" />
-                                    <span className="text-sm">Pending</span>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                      Clock Out Time
+                                    </label>
+                                    <input
+                                      type="time"
+                                      value={editForm.clockOutTime}
+                                      onChange={(e) =>
+                                        setEditForm({
+                                          ...editForm,
+                                          clockOutTime: e.target.value,
+                                        })
+                                      }
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex space-x-2">
+                                  <button
+                                    onClick={() =>
+                                      saveWorkSessionChanges(shift)
+                                    }
+                                    disabled={loading || !editForm.clockInTime}
+                                    className="flex items-center px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50"
+                                  >
+                                    <Save className="w-4 h-4 mr-1" />
+                                    Save
+                                  </button>
+                                  <button
+                                    onClick={cancelEditing}
+                                    disabled={loading}
+                                    className="flex items-center px-3 py-1 bg-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-400"
+                                  >
+                                    <XCircle className="w-4 h-4 mr-1" />
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              // View Mode
+                              <div className="bg-gray-50 p-3 rounded-md">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center space-x-4 text-sm">
+                                    <span>
+                                      <strong>Clock In:</strong>{" "}
+                                      {formatTime(
+                                        shift.workSession.clockInTime
+                                      )}
+                                    </span>
+                                    <span>
+                                      <strong>Clock Out:</strong>{" "}
+                                      {formatTime(
+                                        shift.workSession.clockOutTime
+                                      )}
+                                    </span>
+                                    {shift.workSession.clockInTime &&
+                                      shift.workSession.clockOutTime && (
+                                        <span>
+                                          <strong>Duration:</strong>{" "}
+                                          {formatDuration(
+                                            shift.workSession.clockInTime,
+                                            shift.workSession.clockOutTime
+                                          )}
+                                        </span>
+                                      )}
+                                  </div>
+                                  {isManagerOrAdmin && (
+                                    <div className="flex space-x-2">
+                                      {!isWorkSessionConfirmed(
+                                        shift.workSession
+                                      ) && (
+                                        <button
+                                          onClick={() =>
+                                            confirmWorkSession(
+                                              shift.workSession.id
+                                            )
+                                          }
+                                          disabled={loading}
+                                          className="flex items-center px-2 py-1 bg-green-100 text-green-700 text-xs rounded-md hover:bg-green-200"
+                                        >
+                                          <Check className="w-3 h-3 mr-1" />
+                                          Approve
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={() =>
+                                          startEditingWorkSession(shift)
+                                        }
+                                        disabled={loading}
+                                        className="flex items-center px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-md hover:bg-blue-200"
+                                      >
+                                        <Edit3 className="w-3 h-3 mr-1" />
+                                        Edit
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Session Note */}
+                                {shift.workSession.sessionNote && (
+                                  <div className="mt-3 pt-3 border-t border-gray-200">
+                                    <div className="flex items-start">
+                                      <FileText className="w-4 h-4 text-gray-500 mr-2 mt-0.5" />
+                                      <div>
+                                        <span className="text-sm font-medium text-gray-700">
+                                          Note:
+                                        </span>
+                                        <p className="text-sm text-gray-600 mt-1">
+                                          {
+                                            shift.workSession.sessionNote
+                                              .content
+                                          }
+                                        </p>
+                                      </div>
+                                    </div>
                                   </div>
                                 )}
                               </div>
                             )}
                           </div>
-
-                          {/* Work Session Details */}
-                          {shift.workSession ? (
-                            <div className="space-y-3">
-                              {editingWorkSession === shift.id ? (
-                                // Edit Mode
-                                <div className="bg-blue-50 p-3 rounded-md">
-                                  <div className="grid grid-cols-2 gap-4 mb-3">
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Clock In Time
-                                      </label>
-                                      <input
-                                        type="time"
-                                        value={editForm.clockInTime}
-                                        onChange={(e) =>
-                                          setEditForm({
-                                            ...editForm,
-                                            clockInTime: e.target.value,
-                                          })
-                                        }
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Clock Out Time
-                                      </label>
-                                      <input
-                                        type="time"
-                                        value={editForm.clockOutTime}
-                                        onChange={(e) =>
-                                          setEditForm({
-                                            ...editForm,
-                                            clockOutTime: e.target.value,
-                                          })
-                                        }
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="flex space-x-2">
-                                    <button
-                                      onClick={() =>
-                                        saveWorkSessionChanges(shift)
-                                      }
-                                      disabled={
-                                        loading || !editForm.clockInTime
-                                      }
-                                      className="flex items-center px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50"
-                                    >
-                                      <Save className="w-4 h-4 mr-1" />
-                                      Save
-                                    </button>
-                                    <button
-                                      onClick={cancelEditing}
-                                      disabled={loading}
-                                      className="flex items-center px-3 py-1 bg-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-400"
-                                    >
-                                      <XCircle className="w-4 h-4 mr-1" />
-                                      Cancel
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                // View Mode
-                                <div className="bg-gray-50 p-3 rounded-md">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center space-x-4 text-sm">
-                                      <span>
-                                        <strong>Clock In:</strong>{" "}
-                                        {formatTime(
-                                          shift.workSession.clockInTime
-                                        )}
-                                      </span>
-                                      <span>
-                                        <strong>Clock Out:</strong>{" "}
-                                        {formatTime(
-                                          shift.workSession.clockOutTime
-                                        )}
-                                      </span>
-                                      {shift.workSession.clockInTime &&
-                                        shift.workSession.clockOutTime && (
-                                          <span>
-                                            <strong>Duration:</strong>{" "}
-                                            {formatDuration(
-                                              shift.workSession.clockInTime,
-                                              shift.workSession.clockOutTime
-                                            )}
-                                          </span>
-                                        )}
-                                    </div>
-                                    {isManagerOrAdmin && (
-                                      <div className="flex space-x-2">
-                                        {!isWorkSessionConfirmed(
-                                          shift.workSession
-                                        ) && (
-                                          <>
-                                            <button
-                                              onClick={() =>
-                                                startEditingWorkSession(shift)
-                                              }
-                                              disabled={loading}
-                                              className="flex items-center px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-md hover:bg-blue-200"
-                                            >
-                                              <Edit3 className="w-3 h-3 mr-1" />
-                                              Edit
-                                            </button>
-                                            <button
-                                              onClick={() =>
-                                                confirmWorkSession(
-                                                  shift.workSession.id
-                                                )
-                                              }
-                                              disabled={loading}
-                                              className="flex items-center px-2 py-1 bg-green-100 text-green-700 text-xs rounded-md hover:bg-green-200"
-                                            >
-                                              <Check className="w-3 h-3 mr-1" />
-                                              Approve
-                                            </button>
-                                          </>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {/* Session Note */}
-                                  {shift.workSession.sessionNote && (
-                                    <div className="mt-3 pt-3 border-t border-gray-200">
-                                      <div className="flex items-start">
-                                        <FileText className="w-4 h-4 text-gray-500 mr-2 mt-0.5" />
-                                        <div>
-                                          <span className="text-sm font-medium text-gray-700">
-                                            Note:
-                                          </span>
-                                          <p className="text-sm text-gray-600 mt-1">
-                                            {
-                                              shift.workSession.sessionNote
-                                                .content
-                                            }
-                                          </p>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
+                        ) : (
+                          <div className="bg-yellow-50 p-3 rounded-md">
+                            <div className="flex items-center">
+                              <AlertCircle className="w-4 h-4 text-yellow-600 mr-2" />
+                              <span className="text-sm text-yellow-800">
+                                No work session recorded for this shift
+                              </span>
                             </div>
-                          ) : (
-                            <div className="bg-yellow-50 p-3 rounded-md">
-                              <div className="flex items-center">
-                                <AlertCircle className="w-4 h-4 text-yellow-600 mr-2" />
-                                <span className="text-sm text-yellow-800">
-                                  No work session recorded for this shift
-                                </span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                )
-              )}
+                </div>
+              ))}
             </div>
           )}
         </div>
