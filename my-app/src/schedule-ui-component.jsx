@@ -183,14 +183,7 @@ const createShiftRequest = (
 
 function ScheduleApp() {
   // Extract auth context
-  const { user, getAuthHeaders, getRestaurantId } = useAuth();
-
-  // Helper function to get the token directly
-  const getAuthToken = () => {
-    const headers = getAuthHeaders();
-    const authHeader = headers.Authorization;
-    return authHeader ? authHeader.replace("Bearer ", "") : null;
-  };
+  const { authenticatedFetch, user, getRestaurantId } = useAuth();
 
   // Debug component mounting
   useEffect(() => {
@@ -277,13 +270,6 @@ function ScheduleApp() {
     console.log("👤 Current user making request:", user?.email || "Unknown");
 
     try {
-      const token = getAuthToken();
-      if (!token) {
-        console.error("❌ [WEEKLY SCHEDULE] No auth token available");
-        setError("Authentication required. Please log in again.");
-        return;
-      }
-
       console.log(
         "🔑 [WEEKLY SCHEDULE] Auth token available, proceeding with request"
       );
@@ -291,12 +277,9 @@ function ScheduleApp() {
       const requestUrl = `${USER_BASE_URL}/users/business-unit/${businessUnitId}`;
       console.log("🌐 [WEEKLY SCHEDULE] Making API request to:", requestUrl);
 
-      const response = await fetch(requestUrl, {
+      const response = await authenticatedFetch(requestUrl, {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
       });
 
       const fetchEndTime = new Date().toISOString();
@@ -447,13 +430,13 @@ function ScheduleApp() {
       }
 
       // Fetch availabilities for the week
-      const response = await fetch(
+      const response = await authenticatedFetch(
         API_ENDPOINTS_CONFIG.availabilities(
           businessUnitId,
           startDateStr,
           endDateStr
         ),
-        { headers: getAuthHeaders() }
+        { method: "GET" }
       );
 
       if (!response.ok) {
@@ -546,18 +529,18 @@ function ScheduleApp() {
       console.log(`Creating schedule for week: ${dateString}`);
 
       // Create schedule first
-      const scheduleResponse = await fetch(API_ENDPOINTS_CONFIG.schedules(), {
-        method: "POST",
-        headers: {
-          ...getAuthHeaders(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          businessUnitId,
-          weekStart: dateString,
-          status: "DRAFT",
-        }),
-      });
+      const scheduleResponse = await authenticatedFetch(
+        API_ENDPOINTS_CONFIG.schedules(),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            businessUnitId,
+            weekStart: dateString,
+            status: "DRAFT",
+          }),
+        }
+      );
 
       if (!scheduleResponse.ok) {
         throw new Error(`Error creating schedule: ${scheduleResponse.status}`);
@@ -588,12 +571,9 @@ function ScheduleApp() {
           shift.position
         );
 
-        const savePromise = fetch(API_ENDPOINTS_CONFIG.shifts(), {
+        const savePromise = authenticatedFetch(API_ENDPOINTS_CONFIG.shifts(), {
           method: "POST",
-          headers: {
-            ...getAuthHeaders(),
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(shiftRequest),
         })
           .then((res) => {
@@ -651,13 +631,10 @@ function ScheduleApp() {
       );
 
       // Call the revert to draft endpoint with auth headers
-      const response = await fetch(
+      const response = await authenticatedFetch(
         API_ENDPOINTS_CONFIG.scheduleDraft(currentScheduleId),
         {
           method: "POST",
-          headers: {
-            ...getAuthHeaders(),
-          },
         }
       );
 
@@ -698,13 +675,10 @@ function ScheduleApp() {
       console.log(`Publishing schedule with ID: ${currentScheduleId}`);
 
       // Call the publish endpoint with auth headers
-      const response = await fetch(
+      const response = await authenticatedFetch(
         API_ENDPOINTS_CONFIG.schedulePublish(currentScheduleId),
         {
           method: "POST",
-          headers: {
-            ...getAuthHeaders(),
-          },
         }
       );
 
@@ -750,7 +724,7 @@ function ScheduleApp() {
       console.log(`Fetching shifts for schedule ID: ${currentScheduleId}`);
 
       // Fetch shifts from the backend API
-      fetch(API_ENDPOINTS_CONFIG.scheduleShifts(currentScheduleId))
+      authenticatedFetch(API_ENDPOINTS_CONFIG.scheduleShifts(currentScheduleId))
         .then((response) => {
           if (response.ok) {
             return response.json();
@@ -973,14 +947,16 @@ function ScheduleApp() {
         };
 
         // Save the schedule first
-        const scheduleResponse = await fetch(API_ENDPOINTS_CONFIG.schedules(), {
-          method: "POST",
-          headers: {
-            ...getAuthHeaders(),
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(scheduleRequest),
-        });
+        const scheduleResponse = await authenticatedFetch(
+          API_ENDPOINTS_CONFIG.schedules(),
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(scheduleRequest),
+          }
+        );
 
         if (!scheduleResponse.ok) {
           throw new Error(
@@ -1018,10 +994,10 @@ function ScheduleApp() {
       const method =
         existingShiftIndex >= 0 && currentShift.backendId ? "PUT" : "POST";
 
-      const response = await fetch(endpoint, {
+      const response = await authenticatedFetch(endpoint, {
         method: method,
         headers: {
-          ...getAuthHeaders(),
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(shiftRequest),
       });
@@ -1089,11 +1065,10 @@ function ScheduleApp() {
         console.log(
           `Deleting shift with backend ID ${shiftToDelete.backendId}`
         );
-        const response = await fetch(
+        const response = await authenticatedFetch(
           API_ENDPOINTS_CONFIG.shiftById(shiftToDelete.backendId),
           {
             method: "DELETE",
-            headers: getAuthHeaders(),
           }
         );
 
@@ -1352,10 +1327,10 @@ function ScheduleApp() {
       console.log(
         `[WEEKLY SCHEDULE] 🔄 Fetching fresh employee data from business unit...`
       );
-      const response = await fetch(
+      const response = await authenticatedFetch(
         API_ENDPOINTS_CONFIG.restaurantUsers(businessUnitId),
         {
-          headers: getAuthHeaders(),
+          headers: { "Content-Type": "application/json" },
         }
       );
 
@@ -1507,11 +1482,10 @@ function ScheduleApp() {
       console.log(`- URL: ${apiUrl}`);
       console.log(`- Business Unit ID: ${businessUnitId}`);
       console.log(`- Week Start: ${weekStartLocalDate}`);
-      console.log(`- Headers:`, getAuthHeaders());
 
       // Use the new endpoint that returns schedule with shifts
       // GET /business-units/{id}/schedules/week?weekStart=<localDate>
-      const response = await fetch(apiUrl, { headers: getAuthHeaders() });
+      const response = await authenticatedFetch(apiUrl);
 
       console.log("🔥 API RESPONSE DETAILS:");
       console.log(`- Status: ${response.status} ${response.statusText}`);

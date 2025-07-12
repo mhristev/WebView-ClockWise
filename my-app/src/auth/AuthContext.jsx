@@ -42,7 +42,8 @@ export const AuthProvider = ({ children }) => {
 
   // On mount, check if we have auth data in localStorage
   useEffect(() => {
-    const loadAuthData = () => {
+    const loadAuthData = async () => {
+      // Change to async
       const authData = localStorage.getItem("authData");
 
       if (authData) {
@@ -50,21 +51,25 @@ export const AuthProvider = ({ children }) => {
           const parsedData = JSON.parse(authData);
           const { user, token, refreshToken, expiresAt } = parsedData;
 
-          // Check if token is expired
-          if (expiresAt && new Date(expiresAt) > new Date()) {
-            setUser(user);
-            setToken(token);
-            setRefreshToken(refreshToken);
-            setTokenExpiresAt(expiresAt);
-            setIsAuthenticated(true);
+          setUser(user);
+          setToken(token);
+          setRefreshToken(refreshToken);
+          setTokenExpiresAt(expiresAt);
+          setIsAuthenticated(true);
 
+          // Check if token is expired
+          if (expiresAt && new Date(expiresAt) < new Date()) {
+            try {
+              await refresh(refreshToken); // Pass refreshToken as parameter
+            } catch (error) {
+              console.error("Failed to refresh token on load:", error);
+              localStorage.removeItem("authData");
+              setIsAuthenticated(false);
+              setIsAuthorized(false);
+            }
+          } else {
             // Check if user has authorized role
             checkAuthorization(user?.role);
-          } else {
-            // Token expired, clear auth data
-            localStorage.removeItem("authData");
-            setIsAuthenticated(false);
-            setIsAuthorized(false);
           }
         } catch (error) {
           console.error("Error parsing auth data:", error);
@@ -84,6 +89,72 @@ export const AuthProvider = ({ children }) => {
 
     loadAuthData();
   }, []);
+
+  const refresh = async (refreshTokenToUse = null) => {
+    const tokenToUse = refreshTokenToUse || refreshToken;
+    if (!tokenToUse) {
+      throw new Error("No refresh token available");
+    }
+
+    const response = await fetch(API_ENDPOINTS_CONFIG.refresh(), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ refreshToken: tokenToUse }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Token refresh failed");
+    }
+
+    const data = await response.json();
+
+    const newAccessToken = data.accessToken;
+    const newRefreshToken = data.refreshToken || tokenToUse; // Use new if provided
+    const expiresIn = data.expiresIn || 3600; // Default to 1 hour if not provided
+    const newExpiresAt = new Date(Date.now() + expiresIn * 1000);
+
+    setToken(newAccessToken);
+    setRefreshToken(newRefreshToken);
+    setTokenExpiresAt(newExpiresAt);
+    setIsAuthenticated(true);
+    checkAuthorization(data.role || user?.role); // Update role if provided
+
+    // Update local storage
+    const authDataToStore = {
+      user: { ...user, role: data.role || user?.role },
+      token: newAccessToken,
+      refreshToken: newRefreshToken,
+      expiresAt: newExpiresAt.toISOString(),
+    };
+    localStorage.setItem("authData", JSON.stringify(authDataToStore));
+  };
+
+  const authenticatedFetch = async (url, options = {}) => {
+    // Check if token is expired or close to expiring
+    if (
+      tokenExpiresAt &&
+      new Date(tokenExpiresAt) < new Date(Date.now() + 5 * 60 * 1000)
+    ) {
+      await refresh();
+    }
+
+    const authHeaders = {
+      ...options.headers,
+      Authorization: `Bearer ${token}`,
+    };
+
+    let response = await fetch(url, { ...options, headers: authHeaders });
+
+    if (response.status === 401) {
+      await refresh();
+      authHeaders.Authorization = `Bearer ${token}`;
+      response = await fetch(url, { ...options, headers: authHeaders });
+    }
+
+    return response;
+  };
 
   const login = async (email, password) => {
     try {
@@ -242,6 +313,7 @@ export const AuthProvider = ({ children }) => {
     getAuthHeaders,
     getRestaurantId,
     getBusinessUnitDetails,
+    authenticatedFetch, // Add this
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

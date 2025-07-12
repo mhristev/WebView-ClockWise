@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../auth/AuthContext";
-import { ORGANIZATION_BASE_URL, API_ENDPOINTS_CONFIG } from "../config/api";
+import { API_ENDPOINTS_CONFIG, ORGANIZATION_BASE_URL } from "../config/api";
 import {
   Building2,
   Plus,
@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 
 const AdminOrganizationManagement = () => {
-  const { user, getAuthHeaders } = useAuth();
+  const { authenticatedFetch } = useAuth();
   const [companiesWithBusinessUnits, setCompaniesWithBusinessUnits] = useState(
     []
   );
@@ -138,12 +138,9 @@ const AdminOrganizationManagement = () => {
 
   const fetchCompaniesWithBusinessUnits = async () => {
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         API_ENDPOINTS_CONFIG.companiesWithBusinessUnits(),
-        {
-          method: "GET",
-          headers: getAuthHeaders(),
-        }
+        { method: "GET" }
       );
 
       if (response.status === 401) {
@@ -231,13 +228,13 @@ const AdminOrganizationManagement = () => {
         ? { ...companyForm, id: editingCompany.id }
         : companyForm;
 
-      const response = await fetch(url, {
+      const response = await authenticatedFetch(url, {
         method,
+        body: JSON.stringify(body),
         headers: {
           ...getAuthHeaders(),
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -291,10 +288,7 @@ const AdminOrganizationManagement = () => {
         : `${ORGANIZATION_BASE_URL}/business-units/${id}`;
 
     try {
-      const response = await fetch(url, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
+      const response = await authenticatedFetch(url, { method: "DELETE" });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -356,13 +350,13 @@ const AdminOrganizationManagement = () => {
         ? { ...businessUnitForm, id: editingBusinessUnit.id }
         : businessUnitForm;
 
-      const response = await fetch(url, {
+      const response = await authenticatedFetch(url, {
         method,
+        body: JSON.stringify(body),
         headers: {
           ...getAuthHeaders(),
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(body),
       });
 
       if (!response.ok) {

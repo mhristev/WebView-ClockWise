@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { USER_BASE_URL } from "../config/api";
 import {
   UserCircle,
   Mail,
@@ -14,7 +15,30 @@ import {
 } from "lucide-react";
 
 const ProfilePage = () => {
-  const { user } = useAuth();
+  const { authenticatedFetch, user } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const response = await authenticatedFetch(`${USER_BASE_URL}/users/me`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        setCurrentUser(data);
+      } catch (err) {
+        setError(err);
+        console.error("Error fetching user profile:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, [authenticatedFetch]);
 
   // Helper function to format dates
   const formatDate = (timestamp) => {
@@ -41,10 +65,26 @@ const ProfilePage = () => {
     }
   };
 
-  if (!user) {
+  if (isLoading) {
     return (
       <div className="p-8 text-center">
         <p>Loading user information...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-8 text-center text-red-500">
+        <p>Error: {error.message}</p>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="p-8 text-center">
+        <p>User profile not found.</p>
       </div>
     );
   }
@@ -76,7 +116,7 @@ const ProfilePage = () => {
                   <Hash size={16} className="mr-2" /> User ID
                 </dt>
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 font-mono">
-                  {user.id || "Not available"}
+                  {currentUser.id || "Not available"}
                 </dd>
               </div>
 
@@ -85,7 +125,7 @@ const ProfilePage = () => {
                   <UserCircle size={16} className="mr-2" /> First Name
                 </dt>
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                  {user.firstName || "Not provided"}
+                  {currentUser.firstName || "Not provided"}
                 </dd>
               </div>
 
@@ -94,7 +134,7 @@ const ProfilePage = () => {
                   <UserCircle size={16} className="mr-2" /> Last Name
                 </dt>
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                  {user.lastName || "Not provided"}
+                  {currentUser.lastName || "Not provided"}
                 </dd>
               </div>
 
@@ -103,7 +143,7 @@ const ProfilePage = () => {
                   <Mail size={16} className="mr-2" /> Email address
                 </dt>
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                  {user.email}
+                  {currentUser.email}
                 </dd>
               </div>
 
@@ -112,7 +152,7 @@ const ProfilePage = () => {
                   <Phone size={16} className="mr-2" /> Phone Number
                 </dt>
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                  {user.phoneNumber || "Not provided"}
+                  {currentUser.phoneNumber || "Not provided"}
                 </dd>
               </div>
 
@@ -123,16 +163,16 @@ const ProfilePage = () => {
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 flex items-center">
                   <span
                     className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      user.role === "ADMIN"
+                      currentUser.role === "ADMIN"
                         ? "bg-purple-100 text-purple-800"
-                        : user.role === "MANAGER"
+                        : currentUser.role === "MANAGER"
                         ? "bg-blue-100 text-blue-800"
-                        : user.role === "EMPLOYEE"
+                        : currentUser.role === "EMPLOYEE"
                         ? "bg-green-100 text-green-800"
                         : "bg-gray-100 text-gray-800"
                     }`}
                   >
-                    {user.role}
+                    {currentUser.role}
                   </span>
                 </dd>
               </div>
@@ -144,10 +184,10 @@ const ProfilePage = () => {
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
                   <div>
                     <div className="font-medium">
-                      {user.businessUnitName || "Not assigned"}
+                      {currentUser.businessUnitName || "Not assigned"}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      ID: {user.businessUnitId || "N/A"}
+                      ID: {currentUser.businessUnitId || "N/A"}
                     </div>
                   </div>
                 </dd>
@@ -160,10 +200,10 @@ const ProfilePage = () => {
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
                   <span
                     className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
-                      user.userStatus
+                      currentUser.userStatus
                     )}`}
                   >
-                    {user.userStatus || "Unknown"}
+                    {currentUser.userStatus || "Unknown"}
                   </span>
                 </dd>
               </div>
@@ -189,7 +229,7 @@ const ProfilePage = () => {
                   <Calendar size={16} className="mr-2" /> Account Created
                 </dt>
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                  {formatDate(user.createdAt)}
+                  {formatDate(currentUser.createdAt)}
                 </dd>
               </div>
 
@@ -198,7 +238,7 @@ const ProfilePage = () => {
                   <Clock size={16} className="mr-2" /> Last Seen
                 </dt>
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                  {formatDate(user.lastSeenAt)}
+                  {formatDate(currentUser.lastSeenAt)}
                 </dd>
               </div>
 
@@ -210,16 +250,18 @@ const ProfilePage = () => {
                   <div className="flex items-center space-x-2">
                     <span
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        user.hasProvidedConsent
+                        currentUser.hasProvidedConsent
                           ? "bg-green-100 text-green-800"
                           : "bg-red-100 text-red-800"
                       }`}
                     >
-                      {user.hasProvidedConsent ? "Provided" : "Not Provided"}
+                      {currentUser.hasProvidedConsent
+                        ? "Provided"
+                        : "Not Provided"}
                     </span>
-                    {user.consentVersion && (
+                    {currentUser.consentVersion && (
                       <span className="text-xs text-gray-500">
-                        Version: {user.consentVersion}
+                        Version: {currentUser.consentVersion}
                       </span>
                     )}
                   </div>

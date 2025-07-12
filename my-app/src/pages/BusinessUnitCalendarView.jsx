@@ -29,7 +29,7 @@ const formatMinutesToHoursAndMinutes = (minutes) => {
 };
 
 const BusinessUnitCalendarView = () => {
-  const { user, getAuthHeaders, getRestaurantId } = useAuth();
+  const { user, authenticatedFetch, getRestaurantId } = useAuth();
 
   // State management
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -69,11 +69,9 @@ const BusinessUnitCalendarView = () => {
   const fetchBusinessUnitInfo = async () => {
     try {
       const businessUnitId = getRestaurantId();
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${API_ENDPOINTS_CONFIG.businessUnit(businessUnitId)}`,
-        {
-          headers: getAuthHeaders(),
-        }
+        { method: "GET" }
       );
 
       if (response.ok) {
@@ -113,15 +111,15 @@ const BusinessUnitCalendarView = () => {
         `Fetching comprehensive schedule for ${businessUnitId} from ${startDateISO} to ${endDateISO}`
       );
 
-      const response = await fetch(
+      const response = await authenticatedFetch(
         API_ENDPOINTS_CONFIG.comprehensiveShifts(
           businessUnitId,
           startDateISO,
           endDateISO
         ),
         {
+          method: "GET",
           headers: {
-            ...getAuthHeaders(),
             "Cache-Control": "no-cache, no-store, must-revalidate",
             Pragma: "no-cache",
             Expires: "0",

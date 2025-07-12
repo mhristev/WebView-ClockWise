@@ -4,6 +4,7 @@ import {
   USER_BASE_URL,
   ORGANIZATION_BASE_URL,
   PLANNING_BASE_URL,
+  API_ENDPOINTS_CONFIG,
 } from "../config/api";
 import {
   Calendar,
@@ -25,9 +26,10 @@ import "jspdf-autotable";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { getMonday, getWeekIdentifier } from "../utils/dateUtils";
 
 const AdminBusinessUnitSchedulePage = () => {
-  const { user, getAuthHeaders } = useAuth();
+  const { user, authenticatedFetch, getRestaurantId } = useAuth();
 
   // State for business units
   const [businessUnits, setBusinessUnits] = useState([]);
@@ -83,10 +85,12 @@ const AdminBusinessUnitSchedulePage = () => {
 
     try {
       console.log("Fetching business units for admin view...");
-      const response = await fetch(`${ORGANIZATION_BASE_URL}/business-units`, {
-        method: "GET",
-        headers: getAuthHeaders(),
-      });
+      const response = await authenticatedFetch(
+        `${ORGANIZATION_BASE_URL}/business-units`,
+        {
+          method: "GET",
+        }
+      );
 
       if (response.status === 401) {
         setError("Session expired. Please log in again.");
@@ -126,9 +130,8 @@ const AdminBusinessUnitSchedulePage = () => {
         `Fetching employees for business unit: ${businessUnit.name} (${businessUnit.id})`
       );
 
-      const response = await fetch(`${USER_BASE_URL}/users`, {
+      const response = await authenticatedFetch(`${USER_BASE_URL}/users`, {
         method: "GET",
-        headers: getAuthHeaders(),
       });
 
       if (response.status === 401) {
@@ -225,9 +228,7 @@ const AdminBusinessUnitSchedulePage = () => {
       const apiUrl = `${PLANNING_BASE_URL}/business-units/${businessUnit.id}/schedules/week?weekStart=${weekStartLocalDate}`;
       console.log(`API URL: ${apiUrl}`);
 
-      const response = await fetch(apiUrl, {
-        headers: getAuthHeaders(),
-      });
+      const response = await authenticatedFetch(apiUrl, { method: "GET" });
 
       console.log(`API Response: ${response.status} ${response.statusText}`);
 

@@ -45,6 +45,7 @@ const LoginPage = () => {
       setIsLoading(true);
       setError("");
 
+      // No need to use authenticatedFetch here, as login handles its own fetch and token storage
       await login(email, password);
 
       // Login was successful, navigate to schedule

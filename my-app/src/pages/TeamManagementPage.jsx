@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 
 const TeamManagementPage = () => {
-  const { user, getAuthHeaders, getRestaurantId } = useAuth();
+  const { user, authenticatedFetch, getRestaurantId } = useAuth();
   const [teamMembers, setTeamMembers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -48,12 +48,9 @@ const TeamManagementPage = () => {
     setError(null);
 
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${USER_BASE_URL}/users/business-unit/${businessUnitId}`,
-        {
-          method: "GET",
-          headers: getAuthHeaders(),
-        }
+        { method: "GET" }
       );
 
       if (response.status === 401) {
@@ -136,11 +133,12 @@ const TeamManagementPage = () => {
       }
 
       const url = `${USER_BASE_URL}/users/search-without-business-unit?${params.toString()}`;
-      const headers = getAuthHeaders();
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${user.token}`,
+      };
 
-      const response = await fetch(url, {
-        headers: headers,
-      });
+      const response = await authenticatedFetch(url, { headers: headers });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -170,15 +168,15 @@ const TeamManagementPage = () => {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${USER_BASE_URL}/users/${selectedUserToAdd.id}`,
         {
           method: "PUT",
-          headers: getAuthHeaders(),
           body: JSON.stringify({
             businessUnitId: user.businessUnitId,
             businessUnitName: user.businessUnitName,
           }),
+          headers: { "Content-Type": "application/json" },
         }
       );
 
@@ -213,12 +211,9 @@ const TeamManagementPage = () => {
     setError(null);
 
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${USER_BASE_URL}/users/${selectedMember.id}/business-unit`,
-        {
-          method: "DELETE",
-          headers: getAuthHeaders(),
-        }
+        { method: "DELETE" }
       );
 
       if (response.status === 401) {
@@ -277,20 +272,17 @@ const TeamManagementPage = () => {
     setError(null);
 
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${USER_BASE_URL}/users/${editingMember.id}/contract-hours`,
         {
           method: "PUT",
-          headers: {
-            ...getAuthHeaders(),
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             contractHours:
               editedContractHours === ""
                 ? null
                 : parseInt(editedContractHours, 10),
           }),
+          headers: { "Content-Type": "application/json" },
         }
       );
 

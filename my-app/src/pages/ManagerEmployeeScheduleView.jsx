@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../auth/AuthContext";
-import { API_ENDPOINTS_CONFIG } from "../config/api";
+import { API_ENDPOINTS_CONFIG, USER_BASE_URL } from "../config/api";
 import {
   Calendar,
   User,
@@ -27,7 +27,7 @@ const formatMinutesToHoursAndMinutes = (minutes) => {
 };
 
 const ManagerEmployeeScheduleView = () => {
-  const { user, getAuthHeaders, getRestaurantId } = useAuth();
+  const { user, authenticatedFetch, getRestaurantId } = useAuth();
 
   // State management
   const [employees, setEmployees] = useState([]);
@@ -75,10 +75,15 @@ const ManagerEmployeeScheduleView = () => {
   const fetchEmployees = async () => {
     try {
       const businessUnitId = getRestaurantId();
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${API_ENDPOINTS_CONFIG.restaurantUsers(businessUnitId)}`,
         {
-          headers: getAuthHeaders(),
+          method: "GET",
+          headers: {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            Pragma: "no-cache",
+            Expires: "0",
+          },
         }
       );
 
@@ -128,7 +133,7 @@ const ManagerEmployeeScheduleView = () => {
 
     try {
       const businessUnitId = getRestaurantId();
-      const response = await fetch(
+      const response = await authenticatedFetch(
         API_ENDPOINTS_CONFIG.monthlySchedule(
           businessUnitId,
           selectedEmployee,
@@ -136,8 +141,8 @@ const ManagerEmployeeScheduleView = () => {
           selectedDate.year
         ),
         {
+          method: "GET",
           headers: {
-            ...getAuthHeaders(),
             "Cache-Control": "no-cache, no-store, must-revalidate",
             Pragma: "no-cache",
             Expires: "0",

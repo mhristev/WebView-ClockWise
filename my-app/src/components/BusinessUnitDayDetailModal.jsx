@@ -22,9 +22,10 @@ const BusinessUnitDayDetailModal = ({
   onClose,
   selectedDate,
   shifts,
+  businessUnitId, // Keep businessUnitId as it's a prop
   onWorkSessionUpdate,
 }) => {
-  const { user, getAuthHeaders } = useAuth();
+  const { user, authenticatedFetch } = useAuth(); // Removed getAuthHeaders
   const [editingWorkSession, setEditingWorkSession] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -380,14 +381,10 @@ const BusinessUnitDayDetailModal = ({
         console.log(
           "[BusinessUnitDayDetailModal] Populating missing clock times before confirmation."
         );
-        const modifyResponse = await fetch(
+        const modifyResponse = await authenticatedFetch(
           API_ENDPOINTS_CONFIG.modifyWorkSession(),
           {
             method: "PUT",
-            headers: {
-              ...getAuthHeaders(),
-              "Content-Type": "application/json",
-            },
             body: JSON.stringify({
               workSessionId: workSessionId,
               newClockInTime: parseTimestamp(newClockInTime).toISOString(),
@@ -396,6 +393,7 @@ const BusinessUnitDayDetailModal = ({
                 : null, // Handle potentially null clockOutTime
               modifiedBy: user.id,
             }),
+            headers: { "Content-Type": "application/json" },
           }
         );
 
@@ -411,18 +409,15 @@ const BusinessUnitDayDetailModal = ({
         "[BusinessUnitDayDetailModal] Confirming work session:",
         workSessionId
       );
-      const confirmResponse = await fetch(
+      const confirmResponse = await authenticatedFetch(
         API_ENDPOINTS_CONFIG.confirmWorkSession(),
         {
           method: "POST",
-          headers: {
-            ...getAuthHeaders(),
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             workSessionId: workSessionId,
             confirmedBy: user.id,
           }),
+          headers: { "Content-Type": "application/json" },
         }
       );
 
@@ -486,21 +481,21 @@ const BusinessUnitDayDetailModal = ({
         );
       }
 
-      const response = await fetch(API_ENDPOINTS_CONFIG.modifyWorkSession(), {
-        method: "PUT",
-        headers: {
-          ...getAuthHeaders(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          workSessionId: shift.workSession.id,
-          newClockInTime: clockInDatetime.toISOString(),
-          newClockOutTime: clockOutDatetime
-            ? clockOutDatetime.toISOString()
-            : null,
-          modifiedBy: user.id,
-        }),
-      });
+      const response = await authenticatedFetch(
+        API_ENDPOINTS_CONFIG.modifyWorkSession(),
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            workSessionId: shift.workSession.id,
+            newClockInTime: clockInDatetime.toISOString(),
+            newClockOutTime: clockOutDatetime
+              ? clockOutDatetime.toISOString()
+              : null,
+            modifiedBy: user.id,
+          }),
+          headers: { "Content-Type": "application/json" },
+        }
+      );
 
       if (!response.ok) {
         const errorText = await response.text();

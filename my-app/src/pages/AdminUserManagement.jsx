@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 
 const AdminUserManagement = () => {
-  const { user, getAuthHeaders } = useAuth();
+  const { user, getAuthHeaders, authenticatedFetch } = useAuth();
   const [allUsers, setAllUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [businessUnits, setBusinessUnits] = useState([]);
@@ -76,10 +76,7 @@ const AdminUserManagement = () => {
     setError(null);
 
     try {
-      const response = await fetch(`${USER_BASE_URL}/users`, {
-        method: "GET",
-        headers: getAuthHeaders(),
-      });
+      const response = await authenticatedFetch(`${USER_BASE_URL}/users`);
 
       if (response.status === 401) {
         setError("Session expired. Please log in again.");
@@ -149,10 +146,9 @@ const AdminUserManagement = () => {
         getAuthHeaders()
       );
 
-      const response = await fetch(`${ORGANIZATION_BASE_URL}/business-units`, {
-        method: "GET",
-        headers: getAuthHeaders(),
-      });
+      const response = await authenticatedFetch(
+        `${ORGANIZATION_BASE_URL}/business-units`
+      );
 
       if (response.status === 401) {
         console.error(
@@ -318,14 +314,17 @@ const AdminUserManagement = () => {
 
       console.log("Updating user with data:", updateData);
 
-      const response = await fetch(`${USER_BASE_URL}/users/${editingUser.id}`, {
-        method: "PUT",
-        headers: {
-          ...getAuthHeaders(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updateData),
-      });
+      const response = await authenticatedFetch(
+        `${USER_BASE_URL}/users/${editingUser.id}`,
+        {
+          method: "PUT",
+          headers: {
+            ...getAuthHeaders(),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(updateData),
+        }
+      );
 
       if (!response.ok) {
         let errorMessage = `HTTP error! status: ${response.status}`;

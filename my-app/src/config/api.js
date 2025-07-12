@@ -42,6 +42,7 @@ export const ORGANIZATION_BASE_URL = getApiUrl('ORGANIZATION_API');
 export const API_ENDPOINTS_CONFIG = {
   // Auth endpoints
   login: () => `${AUTH_BASE_URL}/auth/login`,
+  refresh: () => `${AUTH_BASE_URL}/auth/refresh`,
   
   // User endpoints
   me: () => `${USER_BASE_URL}/users/me`,

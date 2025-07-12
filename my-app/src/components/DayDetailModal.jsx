@@ -22,7 +22,7 @@ const DayDetailModal = ({
   employeeName,
   onWorkSessionUpdate,
 }) => {
-  const { user, getAuthHeaders } = useAuth();
+  const { user, authenticatedFetch } = useAuth(); // Removed getAuthHeaders
   const [editingWorkSession, setEditingWorkSession] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -217,17 +217,19 @@ const DayDetailModal = ({
     try {
       console.log("[DayDetailModal] Confirming work session:", workSessionId);
 
-      const response = await fetch(API_ENDPOINTS_CONFIG.confirmWorkSession(), {
-        method: "POST",
-        headers: {
-          ...getAuthHeaders(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          workSessionId,
-          confirmedBy: user.id,
-        }),
-      });
+      const response = await authenticatedFetch(
+        API_ENDPOINTS_CONFIG.confirmWorkSession(),
+        {
+          method: "POST",
+          body: JSON.stringify({
+            workSessionId,
+            confirmedBy: user.id,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to confirm work session: ${response.status}`);
@@ -299,20 +301,19 @@ const DayDetailModal = ({
         clockOutDateTime.setDate(clockOutDateTime.getDate() + 1);
       }
 
-      const response = await fetch(
+      const response = await authenticatedFetch(
         API_ENDPOINTS_CONFIG.modifyAndConfirmWorkSession(),
         {
           method: "PUT",
-          headers: {
-            ...getAuthHeaders(),
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             workSessionId: workSession.id,
             newClockInTime: clockInDateTime.toISOString(),
             newClockOutTime: clockOutDateTime.toISOString(),
             modifiedBy: user.id,
           }),
+          headers: {
+            "Content-Type": "application/json",
+          },
         }
       );
 

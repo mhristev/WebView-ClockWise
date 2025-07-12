@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../auth/AuthContext";
-import { API_ENDPOINTS_CONFIG } from "../config/api";
+import {
+  API_ENDPOINTS_CONFIG,
+  PLANNING_BASE_URL,
+  USER_BASE_URL,
+} from "../config/api";
 import { DollarSign, Building, Download, AlertCircle } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 const AdminPaycheckGenerator = () => {
-  const { getAuthHeaders } = useAuth();
+  const { authenticatedFetch, getRestaurantId } = useAuth();
   const [businessUnits, setBusinessUnits] = useState([]);
   const [selectedBusinessUnit, setSelectedBusinessUnit] = useState("");
   const [paychecks, setPaychecks] = useState([]);
@@ -17,11 +21,9 @@ const AdminPaycheckGenerator = () => {
   useEffect(() => {
     const fetchBusinessUnits = async () => {
       try {
-        const response = await fetch(
+        const response = await authenticatedFetch(
           API_ENDPOINTS_CONFIG.getAllBusinessUnits(),
-          {
-            headers: getAuthHeaders(),
-          }
+          { method: "GET" }
         );
         if (response.ok) {
           const data = await response.json();
@@ -36,7 +38,7 @@ const AdminPaycheckGenerator = () => {
     };
 
     fetchBusinessUnits();
-  }, [getAuthHeaders]);
+  }, [authenticatedFetch]);
 
   const handleGeneratePaychecks = async () => {
     if (!selectedBusinessUnit) {
@@ -49,11 +51,9 @@ const AdminPaycheckGenerator = () => {
     setPaychecks([]);
 
     try {
-      const response = await fetch(
-        API_ENDPOINTS_CONFIG.getEmployeesByBusinessUnit(selectedBusinessUnit),
-        {
-          headers: getAuthHeaders(),
-        }
+      const response = await authenticatedFetch(
+        `${USER_BASE_URL}/users/business-unit/${selectedBusinessUnit}`,
+        { method: "GET" }
       );
 
       if (response.ok) {

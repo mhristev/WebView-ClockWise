@@ -11,9 +11,10 @@ import {
   Mail,
   Briefcase,
 } from "lucide-react";
+import { API_ENDPOINTS_CONFIG, ORGANIZATION_BASE_URL } from "../config/api";
 
 const BusinessUnitPage = () => {
-  const { user, getBusinessUnitDetails } = useAuth();
+  const { user, authenticatedFetch } = useAuth();
   const navigate = useNavigate();
   const [businessUnit, setBusinessUnit] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -26,10 +27,17 @@ const BusinessUnitPage = () => {
         setError(null);
 
         // Try to get business unit details from API
-        const businessUnitData = await getBusinessUnitDetails();
+        const businessUnitId = user?.businessUnitId || "1"; // Fallback to "1" if user data is not available
+        const response = await authenticatedFetch(
+          API_ENDPOINTS_CONFIG.businessUnit(businessUnitId),
+          {
+            method: "GET",
+          }
+        );
 
-        if (businessUnitData) {
-          setBusinessUnit(businessUnitData);
+        if (response.ok) {
+          const data = await response.json();
+          setBusinessUnit(data);
         } else {
           // If API fails or returns null, use fallback data
           setBusinessUnit({
@@ -58,7 +66,7 @@ const BusinessUnitPage = () => {
     };
 
     fetchBusinessUnit();
-  }, [user, getBusinessUnitDetails]);
+  }, [user, authenticatedFetch]);
 
   if (isLoading) {
     return (
