@@ -1,35 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../auth/AuthContext";
 import {
-  USER_BASE_URL,
-  ORGANIZATION_BASE_URL,
-  PLANNING_BASE_URL,
   API_ENDPOINTS_CONFIG,
+  ORGANIZATION_BASE_URL,
+  USER_BASE_URL,
+  PLANNING_BASE_URL, // Re-add this import
 } from "../config/api";
-import {
-  Calendar,
-  Building2,
-  Users,
-  ChevronLeft,
-  ChevronRight,
-  AlertCircle,
-  Loader2,
-  Clock,
-  MapPin,
-  Briefcase,
-  Filter,
-  FileText,
-  Download,
-} from "lucide-react";
-import jsPDF from "jspdf";
-import "jspdf-autotable";
-import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
-import { getMonday, getWeekIdentifier } from "../utils/dateUtils";
+import jsPDF from "jspdf"; // Re-add this import
+import autoTable from "jspdf-autotable"; // Re-add this import
 
 const AdminBusinessUnitSchedulePage = () => {
-  const { user, authenticatedFetch, getRestaurantId } = useAuth();
+  const { user, authenticatedFetch } = useAuth(); // Removed getRestaurantId
 
   // State for business units
   const [businessUnits, setBusinessUnits] = useState([]);
@@ -808,19 +791,19 @@ const AdminBusinessUnitSchedulePage = () => {
     if (user?.role === "ADMIN") {
       fetchBusinessUnits();
     }
-  }, [user]);
+  }, [user, authenticatedFetch]); // Add authenticatedFetch
 
   useEffect(() => {
     if (selectedBusinessUnit) {
       fetchEmployeesForBusinessUnit(selectedBusinessUnit);
     }
-  }, [selectedBusinessUnit]);
+  }, [selectedBusinessUnit, authenticatedFetch]); // Add authenticatedFetch
 
   useEffect(() => {
     if (selectedBusinessUnit) {
       fetchScheduleForWeek(currentWeekStart, selectedBusinessUnit);
     }
-  }, [currentWeekStart, selectedBusinessUnit]);
+  }, [currentWeekStart, selectedBusinessUnit, authenticatedFetch]); // Add authenticatedFetch
 
   // Clear messages after timeout
   useEffect(() => {

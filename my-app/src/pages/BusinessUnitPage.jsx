@@ -22,10 +22,9 @@ const BusinessUnitPage = () => {
 
   useEffect(() => {
     const fetchBusinessUnit = async () => {
+      setIsLoading(true);
+      setError(null);
       try {
-        setIsLoading(true);
-        setError(null);
-
         // Try to get business unit details from API
         const businessUnitId = user?.businessUnitId || "1"; // Fallback to "1" if user data is not available
         const response = await authenticatedFetch(
@@ -40,33 +39,20 @@ const BusinessUnitPage = () => {
           setBusinessUnit(data);
         } else {
           // If API fails or returns null, use fallback data
-          setBusinessUnit({
-            id: user?.businessUnitId || "1",
-            name: user?.businessUnitName || "Restaurant",
-            location: "123 Main Street, City, State 12345",
-            description: "A business unit within the ClockWise system.",
-          });
+          console.warn("Failed to fetch business unit details from API.");
+          setBusinessUnit(null); // Or set a default/error state
         }
-      } catch (err) {
-        console.error("Error fetching business unit:", err);
-        setError(
-          "Failed to load business unit information. Please try again later."
-        );
-
-        // Set fallback data
-        setBusinessUnit({
-          id: user?.businessUnitId || "1",
-          name: user?.businessUnitName || "Restaurant",
-          location: "123 Main Street, City, State 12345",
-          description: "A business unit within the ClockWise system.",
-        });
+      } catch (error) {
+        console.error("Error fetching business unit details:", error);
+        setError(`Failed to load business unit details: ${error.message}`);
+        setBusinessUnit(null);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchBusinessUnit();
-  }, [user, authenticatedFetch]);
+  }, [user, authenticatedFetch]); // Add authenticatedFetch
 
   if (isLoading) {
     return (

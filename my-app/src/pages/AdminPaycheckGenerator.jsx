@@ -10,7 +10,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 const AdminPaycheckGenerator = () => {
-  const { authenticatedFetch, getRestaurantId } = useAuth();
+  const { authenticatedFetch } = useAuth();
   const [businessUnits, setBusinessUnits] = useState([]);
   const [selectedBusinessUnit, setSelectedBusinessUnit] = useState("");
   const [paychecks, setPaychecks] = useState([]);
@@ -18,31 +18,32 @@ const AdminPaycheckGenerator = () => {
   const [error, setError] = useState(null);
   const [taxAmount, setTaxAmount] = useState(30);
 
-  useEffect(() => {
-    const fetchBusinessUnits = async () => {
-      try {
-        const response = await authenticatedFetch(
-          API_ENDPOINTS_CONFIG.getAllBusinessUnits(),
-          { method: "GET" }
-        );
-        if (response.ok) {
-          const data = await response.json();
-          setBusinessUnits(data);
-        } else {
-          setError("Failed to fetch business units.");
-        }
-      } catch (err) {
-        setError("An error occurred while fetching business units.");
-        console.error(err);
+  const fetchBusinessUnits = async () => {
+    try {
+      const response = await authenticatedFetch(
+        API_ENDPOINTS_CONFIG.getAllBusinessUnits(),
+        { method: "GET" }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setBusinessUnits(data);
+      } else {
+        setError("Failed to fetch business units.");
       }
-    };
+    } catch (err) {
+      setError("An error occurred while fetching business units.");
+      console.error(err);
+    }
+  };
 
+  // Fetch business units on component mount or when authenticatedFetch changes
+  useEffect(() => {
     fetchBusinessUnits();
-  }, [authenticatedFetch]);
+  }, [authenticatedFetch]); // Add authenticatedFetch to dependencies
 
   const handleGeneratePaychecks = async () => {
     if (!selectedBusinessUnit) {
-      setError("Please select a business unit.");
+      alert("Please select a business unit.");
       return;
     }
 

@@ -57,15 +57,15 @@ const parseTimestamp = (timestamp) => {
         return new Date(milliseconds);
       } else {
         // Regular millisecond timestamp (JavaScript standard)
-        console.log("Using millisecond timestamp directly:", timestamp);
+        // console.log("Using millisecond timestamp directly:", timestamp);
         return new Date(timestamp);
       }
     } else {
       // It's in seconds (standard Unix timestamp)
-      console.log(
-        "Converting second timestamp to milliseconds:",
-        timestamp * 1000
-      );
+      // console.log(
+      //   "Converting second timestamp to milliseconds:",
+      //   timestamp * 1000
+      // );
       return new Date(timestamp * 1000);
     }
   } else if (typeof timestamp === "string") {
@@ -181,32 +181,30 @@ const createShiftRequest = (
   };
 };
 
+// Helper function to get Monday of a given week (moved outside component)
+function getMonday(date) {
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(date);
+  monday.setDate(diff);
+  monday.setHours(0, 0, 0, 0); // Reset to start of day
+  return monday;
+}
+
+// Get unique week identifier (moved outside component)
+function getWeekIdentifier(date) {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const day = date.getDate();
+  const weekNumber = Math.ceil((day + 6 - date.getDay()) / 7);
+  return `${year}-${month}-${weekNumber}`;
+}
+
 function ScheduleApp() {
   // Extract auth context
   const { authenticatedFetch, user, getRestaurantId } = useAuth();
 
-  // Debug component mounting
-  useEffect(() => {
-    console.log("ScheduleApp component mounted");
-    document.title = "Weekly Schedule | ClockWise";
-  }, []);
-
-  // Log user info for debugging
-  useEffect(() => {
-    if (user) {
-      console.log("Current user info:", user);
-      console.log("Using restaurant ID:", getRestaurantId());
-    }
-  }, [user]);
-
-  // Initialize component by fetching employees and availabilities when mounted
-  useEffect(() => {
-    console.log("Initializing ScheduleApp - fetching employees");
-    fetchEmployees();
-    fetchAvailabilities(currentWeekStart);
-  }, []); // Empty dependency array to run only once on mount
-
-  // State
+  // State declarations
   const [employees, setEmployees] = useState([]);
   const [currentWeekStart, setCurrentWeekStart] = useState(
     getMonday(new Date())
@@ -230,37 +228,16 @@ function ScheduleApp() {
     totalShifts: 0,
   });
 
+  // Constants
   const positions = ["Waiter", "Bartender", "Cleaner"];
-
-  // Position colors
   const positionColors = {
     Waiter: "bg-blue-100 border-blue-300",
     Bartender: "bg-purple-100 border-purple-300",
     Cleaner: "bg-green-100 border-green-300",
   };
-
   const daysOfWeek = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
-  // Helper function to get Monday of a given week
-  function getMonday(date) {
-    const day = date.getDay();
-    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(date);
-    monday.setDate(diff);
-    monday.setHours(0, 0, 0, 0); // Reset to start of day
-    return monday;
-  }
-
-  // Get unique week identifier
-  function getWeekIdentifier(date) {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const day = date.getDate();
-    const weekNumber = Math.ceil((day + 6 - date.getDay()) / 7);
-    return `${year}-${month}-${weekNumber}`;
-  }
-
-  // Fetch employees from the API
+  // Fetch employees from the API (moved here)
   const fetchEmployees = async () => {
     const businessUnitId = getRestaurantId();
     const fetchStartTime = new Date().toISOString();
@@ -289,14 +266,7 @@ function ScheduleApp() {
       );
       console.log("📊 [WEEKLY SCHEDULE] Response status:", response.status);
 
-      if (response.status === 401) {
-        console.error(
-          "🔐 [WEEKLY SCHEDULE] Unauthorized access - token may be expired"
-        );
-        setError("Session expired. Please log in again.");
-        return;
-      }
-
+      // Remove 401 check, as authenticatedFetch handles it
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -376,32 +346,18 @@ function ScheduleApp() {
         "⏱️ [WEEKLY SCHEDULE] Employee processing completed at:",
         processingEndTime
       );
-      console.log(
-        "🎉 [WEEKLY SCHEDULE] User fetch process completed successfully!"
-      );
 
       setEmployees(uniqueEmployees);
     } catch (error) {
-      const errorTime = new Date().toISOString();
-      console.error("💥 [WEEKLY SCHEDULE] Error occurred at:", errorTime);
-      console.error("💥 [WEEKLY SCHEDULE] Error fetching employees:", error);
-      console.error("💥 [WEEKLY SCHEDULE] Error details:", {
-        message: error.message,
-        stack: error.stack,
-        businessUnitId,
-        userEmail: user?.email,
-      });
-
-      // Instead of falling back to sample data, set empty array
-      // This will trigger the "No employees found" message in the UI
-      setEmployees([]);
+      console.error("❌ [WEEKLY SCHEDULE] Error fetching employees:", error);
       setError(`Failed to load employees: ${error.message}`);
+      setEmployees([]); // Clear employees on error
     }
   };
 
-  // Fetch availabilities from the API
+  // Fetch availabilities for the week (moved here)
   const fetchAvailabilities = async (weekStart) => {
-    if (!user) return;
+    if (!user) return; // Ensure user is available
 
     setIsLoading(true);
     try {
@@ -419,15 +375,6 @@ function ScheduleApp() {
       // Format dates for API call - use standard ISO strings with timezone
       const startDateStr = startDate.toISOString();
       const endDateStr = endDate.toISOString();
-
-      if (DEBUG_TIMEZONE) {
-        console.log("Current timezone offset:", TIMEZONE_OFFSET);
-        console.log(`Fetching availabilities for week: ${formatDateRange()}`);
-        console.log(
-          `Date range: ${startDate.toDateString()} - ${endDate.toDateString()}`
-        );
-        console.log(`Start date: ${startDateStr}, End date: ${endDateStr}`);
-      }
 
       // Fetch availabilities for the week
       const response = await authenticatedFetch(
@@ -448,66 +395,181 @@ function ScheduleApp() {
 
       // Process the availabilities
       const availabilitiesByEmployee = {};
-
-      for (const availability of data) {
-        // Initialize array for this employee if not exists
-        if (!availabilitiesByEmployee[availability.employeeId]) {
-          availabilitiesByEmployee[availability.employeeId] = [];
+      data.forEach((availability) => {
+        const employeeId = availability.userId;
+        if (!availabilitiesByEmployee[employeeId]) {
+          availabilitiesByEmployee[employeeId] = {};
         }
 
-        try {
-          // Use the helper function to parse timestamps properly
-          const startTime = parseTimestamp(availability.startTime);
-          const endTime = parseTimestamp(availability.endTime);
+        const date = new Date(availability.date);
+        const dayIndex = date.getDay() === 0 ? 6 : date.getDay() - 1; // Convert to 0=Mon, 6=Sun
 
-          if (!startTime || !endTime) {
-            console.warn(
-              "Invalid date in availability, skipping:",
-              availability
-            );
-            continue;
-          }
-
-          // Add the availability with properly parsed dates
-          availabilitiesByEmployee[availability.employeeId].push({
-            ...availability,
-            startTime,
-            endTime,
-          });
-        } catch (e) {
-          console.error("Error processing availability:", e, availability);
-        }
-      }
+        availabilitiesByEmployee[employeeId][dayIndex] = {
+          id: availability.id,
+          type: availability.type,
+          startTime: availability.startTime,
+          endTime: availability.endTime,
+          note: availability.note,
+        };
+      });
 
       setEmployeeAvailabilities(availabilitiesByEmployee);
-      console.log(
-        "Processed availabilities by employee:",
-        availabilitiesByEmployee
-      );
-
-      if (DEBUG_TIMEZONE) {
-        // Log each availability's date for debugging
-        Object.keys(availabilitiesByEmployee).forEach((employeeId) => {
-          const empAvails = availabilitiesByEmployee[employeeId];
-          console.log(
-            `Employee ${employeeId} has ${empAvails.length} availabilities:`
-          );
-          empAvails.forEach((avail, index) => {
-            console.log(
-              `  ${index + 1}. ${avail.startTime.toDateString()} (${formatTime(
-                avail.startTime
-              )}-${formatTime(avail.endTime)})`
-            );
-          });
-        });
-      }
     } catch (error) {
       console.error("Error fetching availabilities:", error);
-      setError("Failed to load employee availabilities");
+      setError(`Failed to load availabilities: ${error.message}`);
+      setEmployeeAvailabilities({}); // Clear availabilities on error
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Fetch schedule for the current week (moved here)
+  const fetchScheduleForWeek = async (weekStart) => {
+    try {
+      setIsLoading(true);
+      // Ensure published state is reset when fetching a new week
+      setIsSchedulePublished(false);
+
+      // Format the date to ensure it's at midnight on Monday
+      const formattedWeekStart = new Date(weekStart);
+      formattedWeekStart.setHours(0, 0, 0, 0);
+
+      // Clear current schedule when switching weeks
+      setCurrentScheduleId(null);
+
+      // Use the endpoint to fetch a schedule for this specific week
+      const businessUnitId = getRestaurantId();
+      console.log(`Fetching schedule for business unit ID: ${businessUnitId}`);
+
+      // Format the weekStart date as LocalDate string for the API parameter
+      // Use a timezone-safe method to avoid date shifting
+      const year = formattedWeekStart.getFullYear();
+      const month = String(formattedWeekStart.getMonth() + 1).padStart(2, "0");
+      const day = String(formattedWeekStart.getDate()).padStart(2, "0");
+      const weekStartLocalDate = `${year}-${month}-${day}`;
+
+      console.log(`Using date string for API request: ${weekStartLocalDate}`);
+
+      // Log the complete API call details
+      const apiUrl = API_ENDPOINTS_CONFIG.restaurantSchedulesWeekWithShifts(
+        businessUnitId,
+        weekStartLocalDate
+      );
+      console.log("🔥 API CALL DETAILS:");
+      console.log(`- URL: ${apiUrl}`);
+      console.log(`- Business Unit ID: ${businessUnitId}`);
+      console.log(`- Week Start: ${weekStartLocalDate}`);
+
+      // Use the new endpoint that returns schedule with shifts
+      // GET /business-units/{id}/schedules/week?weekStart=<localDate>
+      const response = await authenticatedFetch(apiUrl);
+
+      console.log("🔥 API RESPONSE DETAILS:");
+      console.log(`- Status: ${response.status} ${response.statusText}`);
+      console.log(`- Headers:`, Object.fromEntries(response.headers.entries()));
+      console.log(`- OK: ${response.ok}`);
+
+      if (!response.ok) {
+        console.warn(`❌ No schedule found for week: ${response.status}`);
+
+        // Try to read the error response body
+        try {
+          const errorText = await response.text();
+          console.warn(`❌ Error response body:`, errorText);
+        } catch (e) {
+          console.warn(`❌ Could not read error response body:`, e);
+        }
+
+        setCurrentScheduleId(null);
+        setIsLoading(false);
+        return;
+      }
+
+      // Log the raw response text first
+      const responseText = await response.text();
+      console.log("🔥 RAW RESPONSE TEXT:");
+      console.log(responseText);
+
+      // Parse the JSON
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log("🔥 PARSED JSON DATA:");
+        console.log(JSON.stringify(data, null, 2));
+      } catch (parseError) {
+        console.error("❌ Failed to parse JSON response:", parseError);
+        console.error("❌ Raw response that failed to parse:", responseText);
+        setCurrentScheduleId(null);
+        setIsLoading(false);
+        return;
+      }
+
+      console.log("🔥 DATA STRUCTURE ANALYSIS:");
+      console.log(`- Type: ${typeof data}`);
+      console.log(`- Is Array: ${Array.isArray(data)}`);
+      console.log(`- Keys:`, data ? Object.keys(data) : "null/undefined");
+      console.log(`- Has ID: ${data?.id ? "YES" : "NO"}`);
+      console.log(`- Has shifts: ${data?.shifts ? "YES" : "NO"}`);
+      if (data?.shifts) {
+        console.log(`- Shifts count: ${data.shifts.length}`);
+        console.log(`- First shift:`, data.shifts[0]);
+      }
+
+      // Handle the schedule response with shifts
+      if (data && data.id) {
+        setCurrentScheduleId(data.id);
+        setIsSchedulePublished(data.status === "PUBLISHED");
+
+        // Process shifts if available
+        if (data.shifts && data.shifts.length > 0) {
+          console.log(`Processing ${data.shifts.length} shifts`);
+          processShifts(data.shifts);
+        } else {
+          console.log("No shifts found in schedule for this week.");
+          // If no shifts, ensure weeklySchedules for this week is empty
+          const weekId = getWeekIdentifier(currentWeekStart);
+          setWeeklySchedules((prev) => ({ ...prev, [weekId]: {} }));
+        }
+      } else {
+        console.log("No schedule found for the selected week.");
+        setCurrentScheduleId(null);
+        setIsSchedulePublished(false);
+        const weekId = getWeekIdentifier(currentWeekStart);
+        setWeeklySchedules((prev) => ({ ...prev, [weekId]: {} }));
+      }
+    } catch (error) {
+      console.error("Error fetching schedule:", error);
+      setError(`Failed to load schedule: ${error.message}`);
+      setCurrentScheduleId(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Debug component mounting
+  useEffect(() => {
+    console.log("ScheduleApp component mounted");
+    document.title = "Weekly Schedule | ClockWise";
+  }, []);
+
+  // Log user info for debugging
+  useEffect(() => {
+    if (user) {
+      console.log("Current user info:", user);
+      console.log("Using restaurant ID:", getRestaurantId());
+    }
+  }, [user]);
+
+  // Initialize component by fetching employees and availabilities when mounted
+  useEffect(() => {
+    console.log("Initializing ScheduleApp - fetching employees");
+    if (user) {
+      // Only fetch if user data is available after potential refresh
+      fetchEmployees();
+      fetchAvailabilities(currentWeekStart);
+      fetchScheduleForWeek(currentWeekStart); // Also trigger schedule fetch
+    }
+  }, [user, authenticatedFetch, currentWeekStart]); // Add user, authenticatedFetch, and currentWeekStart to dependencies
 
   // Update the saveScheduleDraft function
   const saveScheduleDraft = async () => {
@@ -1435,164 +1497,6 @@ function ScheduleApp() {
         "[WEEKLY SCHEDULE] ❌ Error during employee validation:",
         error
       );
-    }
-  };
-
-  // Fetch schedule for the specified week
-  const fetchScheduleForWeek = async (weekStart) => {
-    try {
-      setIsLoading(true);
-      // Ensure published state is reset when fetching a new week
-      setIsSchedulePublished(false);
-
-      // Format the date to ensure it's at midnight on Monday
-      const formattedWeekStart = new Date(weekStart);
-      formattedWeekStart.setHours(0, 0, 0, 0);
-
-      if (DEBUG_TIMEZONE) {
-        console.log(
-          `Fetching schedule for week starting: ${formattedWeekStart.toDateString()}`
-        );
-        console.log(`ISO date: ${formattedWeekStart.toISOString()}`);
-        console.log(`Current timezone offset: ${TIMEZONE_OFFSET} hours`);
-      }
-
-      // Clear current schedule when switching weeks
-      setCurrentScheduleId(null);
-
-      // Use the endpoint to fetch a schedule for this specific week
-      const businessUnitId = getRestaurantId();
-      console.log(`Fetching schedule for business unit ID: ${businessUnitId}`);
-
-      // Format the weekStart date as LocalDate string for the API parameter
-      // Use a timezone-safe method to avoid date shifting
-      const year = formattedWeekStart.getFullYear();
-      const month = String(formattedWeekStart.getMonth() + 1).padStart(2, "0");
-      const day = String(formattedWeekStart.getDate()).padStart(2, "0");
-      const weekStartLocalDate = `${year}-${month}-${day}`;
-
-      console.log(`Using date string for API request: ${weekStartLocalDate}`);
-
-      // Log the complete API call details
-      const apiUrl = API_ENDPOINTS_CONFIG.restaurantSchedulesWeekWithShifts(
-        businessUnitId,
-        weekStartLocalDate
-      );
-      console.log("🔥 API CALL DETAILS:");
-      console.log(`- URL: ${apiUrl}`);
-      console.log(`- Business Unit ID: ${businessUnitId}`);
-      console.log(`- Week Start: ${weekStartLocalDate}`);
-
-      // Use the new endpoint that returns schedule with shifts
-      // GET /business-units/{id}/schedules/week?weekStart=<localDate>
-      const response = await authenticatedFetch(apiUrl);
-
-      console.log("🔥 API RESPONSE DETAILS:");
-      console.log(`- Status: ${response.status} ${response.statusText}`);
-      console.log(`- Headers:`, Object.fromEntries(response.headers.entries()));
-      console.log(`- OK: ${response.ok}`);
-
-      if (!response.ok) {
-        console.warn(`❌ No schedule found for week: ${response.status}`);
-
-        // Try to read the error response body
-        try {
-          const errorText = await response.text();
-          console.warn(`❌ Error response body:`, errorText);
-        } catch (e) {
-          console.warn(`❌ Could not read error response body:`, e);
-        }
-
-        setCurrentScheduleId(null);
-        setIsLoading(false);
-        return;
-      }
-
-      // Log the raw response text first
-      const responseText = await response.text();
-      console.log("🔥 RAW RESPONSE TEXT:");
-      console.log(responseText);
-
-      // Parse the JSON
-      let data;
-      try {
-        data = JSON.parse(responseText);
-        console.log("🔥 PARSED JSON DATA:");
-        console.log(JSON.stringify(data, null, 2));
-      } catch (parseError) {
-        console.error("❌ Failed to parse JSON response:", parseError);
-        console.error("❌ Raw response that failed to parse:", responseText);
-        setCurrentScheduleId(null);
-        setIsLoading(false);
-        return;
-      }
-
-      console.log("🔥 DATA STRUCTURE ANALYSIS:");
-      console.log(`- Type: ${typeof data}`);
-      console.log(`- Is Array: ${Array.isArray(data)}`);
-      console.log(`- Keys:`, data ? Object.keys(data) : "null/undefined");
-      console.log(`- Has ID: ${data?.id ? "YES" : "NO"}`);
-      console.log(`- Has shifts: ${data?.shifts ? "YES" : "NO"}`);
-      if (data?.shifts) {
-        console.log(`- Shifts count: ${data.shifts.length}`);
-        console.log(`- First shift:`, data.shifts[0]);
-      }
-
-      // Handle the schedule response with shifts
-      if (data && data.id) {
-        console.log(`Found schedule with ID: ${data.id}`);
-        const scheduleId = data.id;
-        setCurrentScheduleId(scheduleId);
-
-        // Check if the schedule is published
-        setIsSchedulePublished(data.status === "PUBLISHED");
-        console.log(
-          `Schedule status: ${data.status}, isPublished: ${
-            data.status === "PUBLISHED"
-          }`
-        );
-
-        // Process the shifts that came with the schedule
-        if (data.shifts && data.shifts.length > 0) {
-          console.log(
-            `Processing ${data.shifts.length} shifts included in schedule response:`,
-            data.shifts
-          );
-          await processShifts(data.shifts);
-
-          // Validate and cleanup employees after processing shifts
-          await validateAndCleanupEmployees(data.shifts);
-        } else {
-          console.log("No shifts found in the schedule response");
-          // Set empty shifts for this week if none were found
-          const weekId = getWeekIdentifier(currentWeekStart);
-          setWeeklySchedules((prev) => ({
-            ...prev,
-            [weekId]: {},
-          }));
-
-          // Validate employees even when there are no shifts (cleanup removed employees)
-          await validateAndCleanupEmployees([]);
-        }
-      } else {
-        console.log("No schedule found for the selected week");
-        setCurrentScheduleId(null);
-
-        // If we don't have a schedule yet for this week, create an empty schedule object
-        const weekId = getWeekIdentifier(currentWeekStart);
-        setWeeklySchedules((prev) => ({
-          ...prev,
-          [weekId]: {},
-        }));
-
-        // Validate employees even when there's no schedule (cleanup removed employees)
-        await validateAndCleanupEmployees([]);
-      }
-    } catch (error) {
-      console.error("Error fetching schedule:", error);
-      setCurrentScheduleId(null);
-    } finally {
-      setIsLoading(false);
     }
   };
 

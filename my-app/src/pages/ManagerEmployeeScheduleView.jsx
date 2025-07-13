@@ -63,14 +63,14 @@ const ManagerEmployeeScheduleView = () => {
     if (user && (user.role === "MANAGER" || user.role === "ADMIN")) {
       fetchEmployees();
     }
-  }, [user]);
+  }, [user, authenticatedFetch]); // Add authenticatedFetch to dependencies
 
   // Fetch schedule data when employee or date changes
   useEffect(() => {
     if (selectedEmployee && selectedDate.month && selectedDate.year) {
       fetchMonthlySchedule();
     }
-  }, [selectedEmployee, selectedDate]);
+  }, [selectedEmployee, selectedDate, user, authenticatedFetch]); // Add user and authenticatedFetch
 
   const fetchEmployees = async () => {
     try {
@@ -164,9 +164,9 @@ const ManagerEmployeeScheduleView = () => {
       // Log details of each shift and its work session
       data.forEach((week, weekIndex) => {
         if (week.shifts && week.shifts.length > 0) {
-          console.log(
-            `--- Week ${weekIndex + 1} starting: ${week.weekStartDate} ---`
-          );
+          // console.log(
+          //   `--- Week ${weekIndex + 1} starting: ${week.weekStartDate} ---`
+          // );
           week.shifts.forEach((shift, shiftIndex) => {
             console.log(`Shift ${shiftIndex + 1} Details:`, {
               shiftId: shift.id,

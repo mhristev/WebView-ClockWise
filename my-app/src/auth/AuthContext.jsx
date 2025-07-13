@@ -1,4 +1,10 @@
-import React, { createContext, useState, useContext, useEffect } from "react";
+import React, {
+  createContext,
+  useState,
+  useContext,
+  useEffect,
+  useRef,
+} from "react";
 import { API_ENDPOINTS_CONFIG } from "../config/api";
 
 const AuthContext = createContext();
@@ -17,6 +23,8 @@ export const AuthProvider = ({ children }) => {
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
+  // Use a ref to store the refresh promise to prevent multiple simultaneous token refreshes
+  const refreshPromiseRef = useRef(null);
 
   // Check if user role is authorized
   const checkAuthorization = (role) => {
@@ -58,7 +66,7 @@ export const AuthProvider = ({ children }) => {
           setIsAuthenticated(true);
 
           // Check if token is expired
-          if (expiresAt && new Date(expiresAt) < new Date()) {
+          if (true) {
             try {
               await refresh(refreshToken); // Pass refreshToken as parameter
             } catch (error) {
@@ -96,61 +104,229 @@ export const AuthProvider = ({ children }) => {
       throw new Error("No refresh token available");
     }
 
-    const response = await fetch(API_ENDPOINTS_CONFIG.refresh(), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ refreshToken: tokenToUse }),
-    });
-
-    if (!response.ok) {
-      throw new Error("Token refresh failed");
+    if (refreshPromiseRef.current) {
+      console.log("Refresh already in progress, waiting...");
+      return refreshPromiseRef.current;
     }
 
-    const data = await response.json();
+    refreshPromiseRef.current = (async () => {
+      try {
+        console.log("🔄 Starting token refresh...");
+        console.log("📡 Making request to:", API_ENDPOINTS_CONFIG.refresh());
 
-    const newAccessToken = data.accessToken;
-    const newRefreshToken = data.refreshToken || tokenToUse; // Use new if provided
-    const expiresIn = data.expiresIn || 3600; // Default to 1 hour if not provided
-    const newExpiresAt = new Date(Date.now() + expiresIn * 1000);
+        const response = await fetch(API_ENDPOINTS_CONFIG.refresh(), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ refreshToken: tokenToUse }),
+        });
 
-    setToken(newAccessToken);
-    setRefreshToken(newRefreshToken);
-    setTokenExpiresAt(newExpiresAt);
-    setIsAuthenticated(true);
-    checkAuthorization(data.role || user?.role); // Update role if provided
+        console.log("📊 Response status:", response.status);
+        console.log("📊 Response ok:", response.ok);
+        console.log(
+          "📊 Response headers:",
+          Object.fromEntries(response.headers.entries())
+        );
 
-    // Update local storage
-    const authDataToStore = {
-      user: { ...user, role: data.role || user?.role },
-      token: newAccessToken,
-      refreshToken: newRefreshToken,
-      expiresAt: newExpiresAt.toISOString(),
-    };
-    localStorage.setItem("authData", JSON.stringify(authDataToStore));
+        if (!response.ok) {
+          let errorMessage = `Token refresh failed: ${response.status} ${response.statusText}`;
+          try {
+            const errorData = await response.json();
+            console.log("❌ Error response data:", errorData);
+            if (errorData.message) {
+              errorMessage += ` - ${errorData.message}`;
+            } else if (errorData.error) {
+              errorMessage += ` - ${errorData.error}`;
+            }
+          } catch (e) {
+            console.warn("Could not parse error response body:", e);
+          }
+          throw new Error(errorMessage);
+        }
+
+        console.log("✅ Response is ok, parsing JSON...");
+        const data = await response.json();
+        console.log("📦 Parsed response data:", data);
+
+        const newAccessToken = data.accessToken;
+        const newRefreshToken = data.refreshToken || tokenToUse; // Use new if provided
+        const expiresIn = data.expiresIn || 3600; // Default to 1 hour if not provided
+        const newExpiresAt = new Date(Date.now() + expiresIn * 1000);
+
+        console.log("🔑 New access token length:", newAccessToken?.length);
+        console.log("🔄 New refresh token length:", newRefreshToken?.length);
+        console.log("⏰ New expiration time:", newExpiresAt);
+
+        setToken(newAccessToken);
+        setRefreshToken(newRefreshToken);
+        setTokenExpiresAt(newExpiresAt);
+        setIsAuthenticated(true);
+        checkAuthorization(data.role || user?.role); // Update role if provided
+
+        // Fetch full user information from User Service after token refresh
+        let updatedUser = { ...user, role: data.role || user?.role }; // Start with existing user data and updated role
+        try {
+          const userResponse = await fetch(API_ENDPOINTS_CONFIG.me(), {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${newAccessToken}`,
+              "Content-Type": "application/json",
+            },
+          });
+
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            updatedUser = {
+              ...userData,
+              role: data.role || user?.role, // Ensure role from auth service is used
+            };
+            console.log("👥 User data updated after refresh:", updatedUser);
+          } else {
+            console.warn("Failed to re-fetch user details after refresh.");
+          }
+        } catch (error) {
+          console.error("Error re-fetching user details after refresh:", error);
+        }
+
+        setUser(updatedUser);
+
+        console.log("✨ Auth state updated:");
+        console.log(
+          "  Token (first 10 chars):",
+          newAccessToken?.substring(0, 10),
+          "..."
+        );
+        console.log(
+          "  Refresh Token (first 10 chars):",
+          newRefreshToken?.substring(0, 10),
+          "..."
+        );
+        console.log("  Expires At:", newExpiresAt);
+        console.log("  Is Authenticated:", true);
+        console.log(
+          "  Is Authorized:",
+          AUTHORIZED_ROLES.includes(updatedUser?.role)
+        );
+        console.log("  User Role:", updatedUser?.role);
+        console.log("  User Business Unit ID:", updatedUser?.businessUnitId);
+
+        // Update local storage
+        const authDataToStore = {
+          user: updatedUser,
+          token: newAccessToken,
+          refreshToken: newRefreshToken,
+          expiresAt: newExpiresAt.toISOString(),
+        };
+        localStorage.setItem("authData", JSON.stringify(authDataToStore));
+        console.log("💾 Updated localStorage with new tokens and user data");
+        const storedAuthData = JSON.parse(localStorage.getItem("authData"));
+        console.log(
+          "🔎 Verified refreshToken in localStorage (immediate check):",
+          storedAuthData.refreshToken?.length > 0 ? "Exists" : "Does not exist"
+        );
+
+        // Delayed check to ensure persistence
+        setTimeout(() => {
+          const delayedAuthData = localStorage.getItem("authData");
+          if (delayedAuthData) {
+            const parsedDelayedData = JSON.parse(delayedAuthData);
+            console.log(
+              "⏰ Verified refreshToken in localStorage (delayed check):",
+              parsedDelayedData.refreshToken?.length > 0
+                ? "Exists"
+                : "Does not exist"
+            );
+          } else {
+            console.log(
+              "⏰ Verified refreshToken in localStorage (delayed check): No authData found"
+            );
+          }
+        }, 500); // 500ms delay
+
+        return data; // Return the new token data
+      } catch (error) {
+        console.error("❌ Error in refresh function:", error);
+        throw error;
+      } finally {
+        refreshPromiseRef.current = null; // Clear the promise when done
+        console.log("🧹 Cleared refresh promise");
+      }
+    })();
+    return refreshPromiseRef.current;
   };
 
   const authenticatedFetch = async (url, options = {}) => {
+    // Ensure there's no ongoing refresh operation before proceeding
+    if (refreshPromiseRef.current) {
+      await refreshPromiseRef.current;
+    }
+
+    const currentAuthData = localStorage.getItem("authData");
+    let currentToken = null;
+    if (currentAuthData) {
+      try {
+        const parsedAuthData = JSON.parse(currentAuthData);
+        currentToken = parsedAuthData.token;
+      } catch (e) {
+        console.error("Error parsing auth data from localStorage:", e);
+      }
+    }
+
     // Check if token is expired or close to expiring
-    if (
-      tokenExpiresAt &&
-      new Date(tokenExpiresAt) < new Date(Date.now() + 5 * 60 * 1000)
-    ) {
-      await refresh();
+    // Use currentToken for this check if it's available, otherwise fallback to state token
+    if (tokenExpiresAt) {
+      if (new Date(tokenExpiresAt) < new Date(Date.now() + 5 * 60 * 1000)) {
+        console.log("Token nearing expiry, initiating proactive refresh.");
+        await refresh();
+        // After proactive refresh, re-read from localStorage for the freshest token
+        const refreshedAuthData = localStorage.getItem("authData");
+        if (refreshedAuthData) {
+          try {
+            const parsedRefreshedData = JSON.parse(refreshedAuthData);
+            currentToken = parsedRefreshedData.token;
+            console.log("🔑 Updated currentToken after proactive refresh.");
+          } catch (e) {
+            console.error(
+              "Error parsing refreshed auth data from localStorage:",
+              e
+            );
+          }
+        }
+      }
     }
 
     const authHeaders = {
       ...options.headers,
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${currentToken}`,
     };
 
     let response = await fetch(url, { ...options, headers: authHeaders });
 
     if (response.status === 401) {
-      await refresh();
-      authHeaders.Authorization = `Bearer ${token}`;
-      response = await fetch(url, { ...options, headers: authHeaders });
+      // If 401, attempt to refresh and retry the original request
+      try {
+        console.log("🔄 Got 401, attempting token refresh...");
+        await refresh();
+
+        // Get the fresh token from localStorage after refresh
+        const authData = localStorage.getItem("authData");
+        if (authData) {
+          const parsedData = JSON.parse(authData);
+          const freshToken = parsedData.token;
+          console.log("🔑 Using fresh token for retry");
+
+          authHeaders.Authorization = `Bearer ${freshToken}`;
+          response = await fetch(url, { ...options, headers: authHeaders });
+        } else {
+          throw new Error("No auth data found after refresh");
+        }
+      } catch (refreshError) {
+        console.error("Failed to refresh token after 401:", refreshError);
+        // If refresh fails, log out the user
+        logout();
+        throw refreshError; // Re-throw to propagate the error to the calling component
+      }
     }
 
     return response;

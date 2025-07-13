@@ -15,14 +15,14 @@ const parseTimestamp = (timestamp) => {
         );
         return new Date(milliseconds);
       } else {
-        console.log("Using millisecond timestamp directly:", timestamp);
+        // console.log("Using millisecond timestamp directly:", timestamp);
         return new Date(timestamp);
       }
     } else {
-      console.log(
-        "Converting second timestamp to milliseconds:",
-        timestamp * 1000
-      );
+      // console.log(
+      //   "Converting second timestamp to milliseconds:",
+      //   timestamp * 1000
+      // );
       return new Date(timestamp * 1000);
     }
   } else if (typeof timestamp === "string") {

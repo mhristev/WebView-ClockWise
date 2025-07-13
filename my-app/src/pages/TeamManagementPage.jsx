@@ -244,9 +244,12 @@ const TeamManagementPage = () => {
     }
   };
 
+  // Fetch team members on component mount or user/auth state change
   useEffect(() => {
-    fetchTeamMembers();
-  }, [user]);
+    if (user && (user.role === "MANAGER" || user.role === "ADMIN")) {
+      fetchTeamMembers();
+    }
+  }, [user, authenticatedFetch]); // Add authenticatedFetch
 
   // Clear messages after 5 seconds
   useEffect(() => {
