@@ -66,7 +66,7 @@ export const AuthProvider = ({ children }) => {
           setIsAuthenticated(true);
 
           // Check if token is expired
-          if (true) {
+          if (expiresAt && new Date(expiresAt) < new Date()) {
             try {
               await refresh(refreshToken); // Pass refreshToken as parameter
             } catch (error) {
