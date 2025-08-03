@@ -16,6 +16,10 @@ import {
   Edit3,
   Trash2,
   Plus,
+  DollarSign,
+  Clock,
+  Calculator,
+  TrendingUp,
 } from "lucide-react";
 
 const TeamManagementPage = () => {
@@ -32,6 +36,7 @@ const TeamManagementPage = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const [editedContractHours, setEditedContractHours] = useState("");
+  const [editedHourlyRate, setEditedHourlyRate] = useState("");
 
   // Search states for adding members
   const [searchFirstName, setSearchFirstName] = useState("");
@@ -95,6 +100,7 @@ const TeamManagementPage = () => {
           businessUnitName: member.businessUnitName || "Unknown",
           isCurrentUser: isCurrentUser,
           contractHours: member.contractHours,
+          hourlyRate: member.hourlyRate || member.hourlyPayment,
         };
       });
 
@@ -266,24 +272,37 @@ const TeamManagementPage = () => {
     }
   }, [error]);
 
-  const handleUpdateContractHours = async (e) => {
+  const handleUpdateCompensation = async (e) => {
     e.preventDefault();
 
     if (!editingMember) return;
+
+    // Validation
+    const weeklyHours = editedContractHours === "" ? null : parseFloat(editedContractHours);
+    const hourlyRate = editedHourlyRate === "" ? null : parseFloat(editedHourlyRate);
+    
+    if (weeklyHours !== null && (weeklyHours < 0 || weeklyHours > 168)) {
+      setError("Weekly hours must be between 0 and 168");
+      return;
+    }
+    
+    if (hourlyRate !== null && hourlyRate < 0) {
+      setError("Hourly rate cannot be negative");
+      return;
+    }
 
     setIsSubmitting(true);
     setError(null);
 
     try {
+      // Update compensation via specialized payment-and-hours endpoint
       const response = await authenticatedFetch(
-        `${USER_BASE_URL}/users/${editingMember.id}/contract-hours`,
+        `${USER_BASE_URL}/users/${editingMember.id}/payment-and-hours`,
         {
           method: "PUT",
           body: JSON.stringify({
-            contractHours:
-              editedContractHours === ""
-                ? null
-                : parseInt(editedContractHours, 10),
+            contractHours: weeklyHours,
+            hourlyPayment: hourlyRate,
           }),
           headers: { "Content-Type": "application/json" },
         }
@@ -295,47 +314,23 @@ const TeamManagementPage = () => {
       }
 
       setSuccessMessage(
-        `Successfully updated contract hours for ${editingMember.fullName}!`
+        `Successfully updated compensation for ${editingMember.fullName}!`
       );
       setShowEditModal(false);
       setEditingMember(null);
       setEditedContractHours("");
+      setEditedHourlyRate("");
 
       // Refresh team members
       fetchTeamMembers();
     } catch (error) {
-      console.error("Error updating contract hours:", error);
-      setError(`Failed to update contract hours: ${error.message}`);
+      console.error("Error updating compensation:", error);
+      setError(`Failed to update compensation: ${error.message}`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const getRoleColor = (role) => {
-    switch (role?.toUpperCase()) {
-      case "ADMIN":
-        return "bg-purple-100 text-purple-800 border-purple-200";
-      case "MANAGER":
-        return "bg-blue-100 text-blue-800 border-blue-200";
-      case "EMPLOYEE":
-        return "bg-green-100 text-green-800 border-green-200";
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200";
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status?.toUpperCase()) {
-      case "ACTIVE":
-        return "bg-green-100 text-green-800 border-green-200";
-      case "INACTIVE":
-        return "bg-red-100 text-red-800 border-red-200";
-      case "PENDING":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200";
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200";
-    }
-  };
 
   const getInitials = (name) => {
     return (
@@ -446,116 +441,156 @@ const TeamManagementPage = () => {
           {filteredMembers.map((member) => (
             <div
               key={member.id}
-              className={`bg-white border rounded-xl p-6 hover:shadow-lg transition-all duration-200 ${
+              className={`bg-white border rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${
                 member.isCurrentUser
-                  ? "ring-2 ring-green-500 border-green-300 bg-green-50"
+                  ? "ring-2 ring-green-500 border-green-300"
                   : "border-gray-200 hover:border-gray-300"
               }`}
             >
               {/* Member Header */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-start space-x-3">
-                  <div
-                    className={`rounded-full h-12 w-12 flex items-center justify-center flex-shrink-0 ${
-                      member.isCurrentUser ? "bg-green-200" : "bg-gray-200"
-                    }`}
-                  >
-                    <span
-                      className={`text-sm font-medium ${
-                        member.isCurrentUser
-                          ? "text-green-800"
-                          : "text-gray-700"
+              <div className="p-6 pb-4">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start space-x-3">
+                    <div
+                      className={`rounded-full h-12 w-12 flex items-center justify-center flex-shrink-0 ${
+                        member.isCurrentUser ? "bg-green-200" : "bg-gray-200"
                       }`}
                     >
-                      {getInitials(member.fullName)}
-                    </span>
+                      <span
+                        className={`text-sm font-medium ${
+                          member.isCurrentUser
+                            ? "text-green-800"
+                            : "text-gray-700"
+                        }`}
+                      >
+                        {getInitials(member.fullName)}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3
+                        className={`text-lg font-semibold truncate ${
+                          member.isCurrentUser
+                            ? "text-green-900"
+                            : "text-gray-900"
+                        }`}
+                      >
+                        {member.isCurrentUser ? (
+                          <span>
+                            {member.fullName}
+                            <span className="ml-2 text-sm text-green-600 font-medium">
+                              (You)
+                            </span>
+                          </span>
+                        ) : (
+                          member.fullName
+                        )}
+                      </h3>
+                      <p
+                        className={`text-sm flex items-center space-x-2 ${
+                          member.isCurrentUser
+                            ? "text-green-600"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        <Shield size={12} />
+                        <span>{member.role}</span>
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h3
-                      className={`text-sm font-medium truncate ${
-                        member.isCurrentUser
-                          ? "text-green-900"
-                          : "text-gray-900"
-                      }`}
-                    >
-                      {member.isCurrentUser ? (
-                        <span className="font-bold">
-                          {member.fullName} (me)
-                        </span>
-                      ) : (
-                        member.fullName
-                      )}
-                    </h3>
-                    <p
-                      className={`text-sm truncate ${
-                        member.isCurrentUser
-                          ? "text-green-600"
-                          : "text-gray-500"
-                      }`}
-                    >
-                      @{member.username}
-                    </p>
-                  </div>
-                </div>
 
-                {/* Actions */}
-                {!member.isCurrentUser && (
-                  <div className="flex space-x-1">
-                    <button
-                      onClick={() => {
-                        setEditingMember(member);
-                        setEditedContractHours(member.contractHours || "");
-                        setShowEditModal(true);
-                      }}
-                      className="p-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
-                      title="Edit member"
-                    >
-                      <Edit3 size={14} />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedMember(member);
-                        setShowRemoveModal(true);
-                      }}
-                      className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-                      title="Remove member"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                )}
+                  {/* Actions */}
+                  {!member.isCurrentUser && (
+                    <div className="flex space-x-1">
+                      <button
+                        onClick={() => {
+                          setEditingMember(member);
+                          setEditedContractHours(member.contractHours || "");
+                          setEditedHourlyRate(member.hourlyRate || "");
+                          setShowEditModal(true);
+                        }}
+                        className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Edit compensation"
+                      >
+                        <Edit3 size={16} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedMember(member);
+                          setShowRemoveModal(true);
+                        }}
+                        className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Remove member"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Member Details */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500 flex items-center">
-                    <Shield size={12} className="mr-1" />
-                    Role
-                  </span>
-                  <span
-                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getRoleColor(
-                      member.role
-                    )}`}
-                  >
-                    {member.role}
-                  </span>
-                </div>
+              {/* Compensation Section - Prominent Display */}
+              {(member.contractHours != null && member.contractHours !== "") ||
+              (member.hourlyRate != null && member.hourlyRate !== "") ? (
+                <div className="bg-gradient-to-r from-blue-50 to-green-50 px-6 py-4 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-gray-700 flex items-center">
+                      <Calculator size={14} className="mr-2 text-blue-600" />
+                      Compensation
+                    </h4>
+                    {member.contractHours &&
+                      member.hourlyRate &&
+                      member.contractHours !== "" &&
+                      member.hourlyRate !== "" && (
+                        <div className="flex items-center space-x-1 bg-green-100 px-2 py-1 rounded-full">
+                          <TrendingUp size={12} className="text-green-600" />
+                          <span className="text-sm font-bold text-green-800">
+                            ${(
+                              parseFloat(member.contractHours) *
+                              parseFloat(member.hourlyRate)
+                            ).toFixed(2)}/wk
+                          </span>
+                        </div>
+                      )}
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    {member.contractHours != null &&
+                      member.contractHours !== "" && (
+                        <div className="flex items-center space-x-2">
+                          <Clock size={14} className="text-blue-500 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs text-gray-500">Weekly Hours</p>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {member.contractHours}h
+                            </p>
+                          </div>
+                        </div>
+                      )}
 
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500 flex items-center">
-                    <AlertCircle size={12} className="mr-1" />
-                    Status
-                  </span>
-                  <span
-                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                      member.userStatus
-                    )}`}
-                  >
-                    {member.userStatus}
-                  </span>
+                    {member.hourlyRate != null && member.hourlyRate !== "" && (
+                      <div className="flex items-center space-x-2">
+                        <DollarSign size={14} className="text-green-500 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-gray-500">Hourly Rate</p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            ${Number(member.hourlyRate).toFixed(2)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
+              ) : (
+                <div className="bg-gray-50 px-6 py-4 border-t border-gray-100">
+                  <div className="flex items-center justify-center text-gray-500">
+                    <Calculator size={14} className="mr-2" />
+                    <span className="text-sm">No compensation data</span>
+                  </div>
+                </div>
+              )}
 
+              {/* Contact Information */}
+              <div className="px-6 py-4 space-y-2 border-t border-gray-100">
                 {member.email && (
                   <div className="flex items-center space-x-2">
                     <Mail size={12} className="text-gray-400 flex-shrink-0" />
@@ -565,22 +600,18 @@ const TeamManagementPage = () => {
                   </div>
                 )}
 
-                {member.contractHours != null &&
-                  member.contractHours !== "" && (
-                    <div className="flex items-center space-x-2">
-                      <Mail size={12} className="text-gray-400 flex-shrink-0" />
-                      <span className="text-xs text-gray-600 truncate">
-                        Contract Hours: {member.contractHours}
-                      </span>
-                    </div>
-                  )}
-
                 {member.phoneNumber && (
                   <div className="flex items-center space-x-2">
                     <Phone size={12} className="text-gray-400 flex-shrink-0" />
                     <span className="text-xs text-gray-600">
                       {member.phoneNumber}
                     </span>
+                  </div>
+                )}
+                
+                {!member.email && !member.phoneNumber && (
+                  <div className="text-center py-2">
+                    <span className="text-xs text-gray-400">No contact info</span>
                   </div>
                 )}
               </div>
@@ -760,7 +791,7 @@ const TeamManagementPage = () => {
                   <Edit3 size={20} className="text-blue-600" />
                 </div>
                 <h2 className="text-lg font-semibold text-gray-900">
-                  Edit Team Member
+                  Edit Compensation
                 </h2>
               </div>
               <button
@@ -771,17 +802,59 @@ const TeamManagementPage = () => {
               </button>
             </div>
 
-            <form onSubmit={handleUpdateContractHours} className="p-6">
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Contract Hours
-                </label>
-                <input
-                  type="number"
-                  value={editedContractHours}
-                  onChange={(e) => setEditedContractHours(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+            <form onSubmit={handleUpdateCompensation} className="p-6">
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium text-gray-900 border-b border-gray-200 pb-2">
+                  Compensation Details
+                </h4>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Weekly Hours
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="168"
+                      step="0.5"
+                      placeholder="e.g., 40"
+                      value={editedContractHours}
+                      onChange={(e) => setEditedContractHours(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Expected hours per week</p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Hourly Pay Rate
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                        $
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={editedHourlyRate}
+                        onChange={(e) => setEditedHourlyRate(e.target.value)}
+                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Pay rate per hour worked</p>
+                  </div>
+                </div>
+                
+                {editedContractHours && editedHourlyRate && (
+                  <div className="mt-3 p-3 bg-blue-50 rounded-md">
+                    <span className="text-sm text-blue-800">
+                      Estimated weekly earnings: ${(parseFloat(editedContractHours) * parseFloat(editedHourlyRate)).toFixed(2)}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end space-x-3">
@@ -805,7 +878,7 @@ const TeamManagementPage = () => {
                   ) : (
                     <>
                       <CheckCircle size={16} className="mr-2" />
-                      Save Changes
+                      Save Compensation
                     </>
                   )}
                 </button>

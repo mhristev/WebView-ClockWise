@@ -17,6 +17,10 @@ import {
   Mail,
   Phone,
   Filter,
+  DollarSign,
+  Clock,
+  Calculator,
+  TrendingUp,
 } from "lucide-react";
 
 const AdminUserManagement = () => {
@@ -47,6 +51,7 @@ const AdminUserManagement = () => {
     email: "",
     phoneNumber: "",
     contractHours: "",
+    hourlyRate: "",
   });
 
   // Available roles
@@ -118,6 +123,7 @@ const AdminUserManagement = () => {
         businessUnitName: userData.businessUnitName || "Unassigned",
         isCurrentUser: user && userData.id === user.id,
         contractHours: userData.contractHours,
+        hourlyRate: userData.hourlyRate || userData.hourlyPayment,
       }));
 
       // Sort users: current user first, then alphabetically
@@ -230,6 +236,7 @@ const AdminUserManagement = () => {
       email: userData.email || "",
       phoneNumber: userData.phoneNumber || "",
       contractHours: userData.contractHours || "",
+      hourlyRate: userData.hourlyRate || "",
     });
 
     console.log("Edit form initialized with:", {
@@ -257,6 +264,7 @@ const AdminUserManagement = () => {
       email: "",
       phoneNumber: "",
       contractHours: "",
+      hourlyRate: "",
     });
   };
 
@@ -290,11 +298,20 @@ const AdminUserManagement = () => {
         lastName: editForm.lastName.trim(),
         email: editForm.email.trim(),
         phoneNumber: editForm.phoneNumber ? editForm.phoneNumber.trim() : null,
+      };
+
+      // Prepare compensation data separately for the payment-and-hours endpoint
+      const hasCompensationChanges = editForm.contractHours !== "" || editForm.hourlyRate !== "";
+      const compensationData = hasCompensationChanges ? {
         contractHours:
           editForm.contractHours === ""
             ? null
             : parseInt(editForm.contractHours, 10),
-      };
+        hourlyPayment:
+          editForm.hourlyRate === ""
+            ? null
+            : parseFloat(editForm.hourlyRate),
+      } : null;
 
       // Handle business unit assignment/unassignment
       if (editForm.businessUnitId && editForm.businessUnitId !== "") {
@@ -314,6 +331,7 @@ const AdminUserManagement = () => {
 
       console.log("Updating user with data:", updateData);
 
+      // First, update the main user data
       const response = await authenticatedFetch(
         `${USER_BASE_URL}/users/${editingUser.id}`,
         {
@@ -339,8 +357,41 @@ const AdminUserManagement = () => {
         throw new Error(errorMessage);
       }
 
-      const updatedUser = await response.json();
+      let updatedUser = await response.json();
       console.log("User update successful:", updatedUser);
+
+      // If there are compensation changes, update those separately
+      if (compensationData) {
+        console.log("Updating compensation with data:", compensationData);
+        
+        const compensationResponse = await authenticatedFetch(
+          `${USER_BASE_URL}/users/${editingUser.id}/payment-and-hours`,
+          {
+            method: "PUT",
+            headers: {
+              ...getAuthHeaders(),
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(compensationData),
+          }
+        );
+
+        if (!compensationResponse.ok) {
+          let errorMessage = `Failed to update compensation! status: ${compensationResponse.status}`;
+          try {
+            const errorData = await compensationResponse.text();
+            if (errorData) {
+              errorMessage = errorData;
+            }
+          } catch (e) {
+            console.warn("Could not parse compensation error response:", e);
+          }
+          throw new Error(errorMessage);
+        }
+
+        updatedUser = await compensationResponse.json();
+        console.log("Compensation update successful:", updatedUser);
+      }
 
       setSuccessMessage("User updated successfully!");
       handleCloseModal();
@@ -602,7 +653,7 @@ const AdminUserManagement = () => {
         </div>
       )}
 
-      {/* Users List */}
+      {/* Users Grid */}
       {isLoading ? (
         <div className="text-center py-12">
           <Loader2
@@ -631,97 +682,177 @@ const AdminUserManagement = () => {
           </p>
         </div>
       ) : (
-        <div className="bg-white shadow overflow-hidden sm:rounded-md">
-          <ul className="divide-y divide-gray-200">
-            {filteredUsers.map((userData) => (
-              <li key={userData.id} className="px-6 py-4 hover:bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filteredUsers.map((userData) => (
+            <div
+              key={userData.id}
+              className={`bg-white border rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${
+                userData.isCurrentUser
+                  ? "ring-2 ring-purple-500 border-purple-300"
+                  : "border-gray-200 hover:border-gray-300"
+              }`}
+            >
+              {/* User Header */}
+              <div className="p-5 pb-3">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-3">
                     <div
-                      className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center text-sm font-medium ${
+                      className={`rounded-full h-12 w-12 flex items-center justify-center flex-shrink-0 text-sm font-medium ${
                         userData.isCurrentUser
-                          ? "bg-purple-100 text-purple-800 ring-2 ring-purple-300"
-                          : "bg-gray-100 text-gray-600"
+                          ? "bg-purple-200 text-purple-800"
+                          : "bg-gray-200 text-gray-700"
                       }`}
                     >
                       {getInitials(userData.fullName)}
                     </div>
-                    <div className="ml-4 flex-1 min-w-0">
-                      <div className="flex items-center">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {userData.fullName}
-                          {userData.isCurrentUser && (
-                            <span className="ml-2 text-xs text-purple-600 font-medium">
-                              (You)
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                      <div className="flex items-center space-x-4 mt-1">
-                        {userData.email && (
-                          <p className="text-sm text-gray-500 flex items-center">
-                            <Mail size={12} className="mr-1" />
-                            {userData.email}
-                          </p>
+                    <div className="flex-1 min-w-0">
+                      <h3
+                        className={`text-lg font-semibold truncate ${
+                          userData.isCurrentUser
+                            ? "text-purple-900"
+                            : "text-gray-900"
+                        }`}
+                      >
+                        {userData.fullName}
+                        {userData.isCurrentUser && (
+                          <span className="ml-2 text-sm text-purple-600 font-medium">
+                            (You)
+                          </span>
                         )}
-                        {userData.phoneNumber && (
-                          <p className="text-sm text-gray-500 flex items-center">
-                            <Phone size={12} className="mr-1" />
-                            {userData.phoneNumber}
-                          </p>
-                        )}
-                        {userData.contractHours != null &&
-                          userData.contractHours !== "" && (
-                            <p className="text-sm text-gray-500 flex items-center">
-                              <Mail size={12} className="mr-1" />
-                              Contract Hours: {userData.contractHours}
-                            </p>
-                          )}
-                      </div>
+                      </h3>
                     </div>
                   </div>
+                  
+                  {!userData.isCurrentUser && (
+                    <button
+                      onClick={() => handleEditUser(userData)}
+                      className="p-2 text-purple-500 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
+                      title="Edit user"
+                    >
+                      <Edit3 size={16} />
+                    </button>
+                  )}
+                </div>
+                
+                {/* Role and Status Badges */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <span
+                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getRoleColor(
+                      userData.role
+                    )}`}
+                  >
+                    <Shield size={10} className="mr-1" />
+                    {userData.role}
+                  </span>
+                  
+                  <span
+                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(
+                      userData.userStatus
+                    )}`}
+                  >
+                    <UserCheck size={10} className="mr-1" />
+                    {userData.userStatus}
+                  </span>
+                </div>
+                
+                {/* Business Unit */}
+                <div className="flex items-center space-x-2 mb-3">
+                  <Building2 size={14} className="text-blue-500 flex-shrink-0" />
+                  <span className="text-sm text-gray-600 truncate">
+                    {userData.businessUnitName}
+                  </span>
+                </div>
+              </div>
 
-                  <div className="flex items-center space-x-4">
-                    {/* View Mode - Display user information */}
-                    <div className="flex items-center space-x-2">
-                      <span
-                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getRoleColor(
-                          userData.role
-                        )}`}
-                      >
-                        <Shield size={10} className="mr-1" />
-                        {userData.role}
-                      </span>
-
-                      <span
-                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                          userData.userStatus
-                        )}`}
-                      >
-                        <UserCheck size={10} className="mr-1" />
-                        {userData.userStatus}
-                      </span>
-
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border bg-blue-100 text-blue-800 border-blue-200">
-                        <Building2 size={10} className="mr-1" />
-                        {userData.businessUnitName}
-                      </span>
-
-                      {!userData.isCurrentUser && (
-                        <button
-                          onClick={() => handleEditUser(userData)}
-                          className="p-1 text-purple-600 hover:text-purple-800 transition-colors"
-                          title="Edit user"
-                        >
-                          <Edit3 size={16} />
-                        </button>
+              {/* Compensation Section - Prominent Display */}
+              {(userData.contractHours != null && userData.contractHours !== "") ||
+              (userData.hourlyRate != null && userData.hourlyRate !== "") ? (
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 px-5 py-4 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-gray-700 flex items-center">
+                      <Calculator size={14} className="mr-2 text-purple-600" />
+                      Compensation
+                    </h4>
+                    {userData.contractHours &&
+                      userData.hourlyRate &&
+                      userData.contractHours !== "" &&
+                      userData.hourlyRate !== "" && (
+                        <div className="flex items-center space-x-1 bg-purple-100 px-2 py-1 rounded-full">
+                          <TrendingUp size={12} className="text-purple-600" />
+                          <span className="text-sm font-bold text-purple-800">
+                            ${(
+                              parseFloat(userData.contractHours) *
+                              parseFloat(userData.hourlyRate)
+                            ).toFixed(2)}/wk
+                          </span>
+                        </div>
                       )}
-                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {userData.contractHours != null &&
+                      userData.contractHours !== "" && (
+                        <div className="flex items-center space-x-2">
+                          <Clock size={14} className="text-blue-500 flex-shrink-0" />
+                          <div className="flex-1">
+                            <p className="text-xs text-gray-500">Weekly Hours</p>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {userData.contractHours}h
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                    {userData.hourlyRate != null && userData.hourlyRate !== "" && (
+                      <div className="flex items-center space-x-2">
+                        <DollarSign size={14} className="text-green-500 flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-500">Hourly Rate</p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            ${Number(userData.hourlyRate).toFixed(2)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </li>
-            ))}
-          </ul>
+              ) : (
+                <div className="bg-gray-50 px-5 py-4 border-t border-gray-100">
+                  <div className="flex items-center justify-center text-gray-500">
+                    <Calculator size={14} className="mr-2" />
+                    <span className="text-sm">No compensation data</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Contact Information */}
+              <div className="px-5 py-4 space-y-2 border-t border-gray-100">
+                {userData.email && (
+                  <div className="flex items-center space-x-2">
+                    <Mail size={12} className="text-gray-400 flex-shrink-0" />
+                    <span className="text-xs text-gray-600 truncate">
+                      {userData.email}
+                    </span>
+                  </div>
+                )}
+
+                {userData.phoneNumber && (
+                  <div className="flex items-center space-x-2">
+                    <Phone size={12} className="text-gray-400 flex-shrink-0" />
+                    <span className="text-xs text-gray-600">
+                      {userData.phoneNumber}
+                    </span>
+                  </div>
+                )}
+                
+                {!userData.email && !userData.phoneNumber && (
+                  <div className="text-center py-1">
+                    <span className="text-xs text-gray-400">No contact info</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -742,167 +873,228 @@ const AdminUserManagement = () => {
               </div>
 
               {/* Modal Body */}
-              <div className="space-y-4">
-                {/* Basic Information */}
-                <div className="mb-4">
-                  <label
-                    htmlFor="firstName"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
-                    First Name *
-                  </label>
-                  <input
-                    type="text"
-                    id="firstName"
-                    name="firstName"
-                    value={editForm.firstName || ""}
-                    onChange={handleInputChange}
-                    required
-                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${
-                      getFieldError("firstName")
-                        ? "border-red-500"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {getFieldError("firstName") && (
-                    <p className="text-red-500 text-xs mt-1">
-                      {getFieldError("firstName")}
-                    </p>
-                  )}
+              <div className="space-y-6">
+                {/* Personal Information Section */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-medium text-gray-900 border-b border-gray-200 pb-2">
+                    Personal Information
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label
+                        htmlFor="firstName"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        First Name *
+                      </label>
+                      <input
+                        type="text"
+                        id="firstName"
+                        name="firstName"
+                        value={editForm.firstName || ""}
+                        onChange={handleInputChange}
+                        required
+                        className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${
+                          getFieldError("firstName")
+                            ? "border-red-500"
+                            : "border-gray-300"
+                        }`}
+                      />
+                      {getFieldError("firstName") && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {getFieldError("firstName")}
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="lastName"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Last Name *
+                      </label>
+                      <input
+                        type="text"
+                        id="lastName"
+                        name="lastName"
+                        value={editForm.lastName || ""}
+                        onChange={handleInputChange}
+                        required
+                        className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${
+                          getFieldError("lastName")
+                            ? "border-red-500"
+                            : "border-gray-300"
+                        }`}
+                      />
+                      {getFieldError("lastName") && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {getFieldError("lastName")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="email"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Email *
+                    </label>
+                    <input
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={editForm.email || ""}
+                      onChange={handleInputChange}
+                      required
+                      className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${
+                        getFieldError("email")
+                          ? "border-red-500"
+                          : "border-gray-300"
+                      }`}
+                    />
+                    {getFieldError("email") && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {getFieldError("email")}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="phoneNumber"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Phone Number (optional)
+                    </label>
+                    <input
+                      type="tel"
+                      id="phoneNumber"
+                      name="phoneNumber"
+                      value={editForm.phoneNumber || ""}
+                      onChange={handleInputChange}
+                      placeholder="Enter phone number"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                    />
+                  </div>
                 </div>
 
-                <div className="mb-4">
-                  <label
-                    htmlFor="lastName"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
-                    Last Name *
-                  </label>
-                  <input
-                    type="text"
-                    id="lastName"
-                    name="lastName"
-                    value={editForm.lastName || ""}
-                    onChange={handleInputChange}
-                    required
-                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${
-                      getFieldError("lastName")
-                        ? "border-red-500"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {getFieldError("lastName") && (
-                    <p className="text-red-500 text-xs mt-1">
-                      {getFieldError("lastName")}
-                    </p>
-                  )}
-                </div>
+                {/* Work Details Section */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-medium text-gray-900 border-b border-gray-200 pb-2">
+                    Work Details
+                  </h4>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Role *
+                    </label>
+                    <select
+                      value={editForm.role}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, role: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      required
+                    >
+                      <option value="">Select Role</option>
+                      {ROLES.map((role) => (
+                        <option key={role} value={role}>
+                          {role}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                <div className="mb-4">
-                  <label
-                    htmlFor="email"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={editForm.email || ""}
-                    onChange={handleInputChange}
-                    required
-                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${
-                      getFieldError("email")
-                        ? "border-red-500"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {getFieldError("email") && (
-                    <p className="text-red-500 text-xs mt-1">
-                      {getFieldError("email")}
-                    </p>
-                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Business Unit
+                    </label>
+                    <select
+                      value={editForm.businessUnitId}
+                      onChange={(e) => handleBusinessUnitChange(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    >
+                      <option value="">Unassigned</option>
+                      {businessUnits.map((unit) => (
+                        <option key={unit.id} value={unit.id}>
+                          {unit.name} - {unit.location}
+                        </option>
+                      ))}
+                    </select>
+                    {businessUnits.length === 0 && (
+                      <p className="text-sm text-gray-500 mt-1">
+                        Loading business units...
+                      </p>
+                    )}
+                  </div>
                 </div>
-
-                <div className="mb-4">
-                  <label
-                    htmlFor="phoneNumber"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
-                    Phone Number (optional)
-                  </label>
-                  <input
-                    type="tel"
-                    id="phoneNumber"
-                    name="phoneNumber"
-                    value={editForm.phoneNumber || ""}
-                    onChange={handleInputChange}
-                    placeholder="Enter phone number"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
-                  />
-                </div>
-
-                <div className="mb-4">
-                  <label
-                    htmlFor="contractHours"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
-                    Contract Hours
-                  </label>
-                  <input
-                    type="number"
-                    id="contractHours"
-                    name="contractHours"
-                    value={editForm.contractHours || ""}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
-                  />
-                </div>
-
-                {/* Role Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Role *
-                  </label>
-                  <select
-                    value={editForm.role}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, role: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="">Select Role</option>
-                    {ROLES.map((role) => (
-                      <option key={role} value={role}>
-                        {role}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Business Unit Assignment */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Business Unit
-                  </label>
-                  <select
-                    value={editForm.businessUnitId}
-                    onChange={(e) => handleBusinessUnitChange(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    <option value="">Unassigned</option>
-                    {businessUnits.map((unit) => (
-                      <option key={unit.id} value={unit.id}>
-                        {unit.name} - {unit.location}
-                      </option>
-                    ))}
-                  </select>
-                  {businessUnits.length === 0 && (
-                    <p className="text-sm text-gray-500 mt-1">
-                      Loading business units...
-                    </p>
+                
+                {/* Compensation Section */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-medium text-gray-900 border-b border-gray-200 pb-2">
+                    Compensation Details
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label
+                        htmlFor="contractHours"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Weekly Hours
+                      </label>
+                      <input
+                        type="number"
+                        id="contractHours"
+                        name="contractHours"
+                        min="0"
+                        max="168"
+                        step="0.5"
+                        placeholder="e.g., 40"
+                        value={editForm.contractHours || ""}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Expected hours per week</p>
+                    </div>
+                    
+                    <div>
+                      <label
+                        htmlFor="hourlyRate"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Hourly Pay Rate
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                          $
+                        </span>
+                        <input
+                          type="number"
+                          id="hourlyRate"
+                          name="hourlyRate"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={editForm.hourlyRate || ""}
+                          onChange={handleInputChange}
+                          className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Pay rate per hour worked</p>
+                    </div>
+                  </div>
+                  
+                  {editForm.contractHours && editForm.hourlyRate && (
+                    <div className="mt-3 p-3 bg-purple-50 rounded-md">
+                      <span className="text-sm text-purple-800">
+                        Estimated weekly earnings: ${(parseFloat(editForm.contractHours) * parseFloat(editForm.hourlyRate)).toFixed(2)}
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>
