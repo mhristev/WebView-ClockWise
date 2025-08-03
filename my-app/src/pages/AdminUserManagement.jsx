@@ -21,6 +21,7 @@ import {
   Clock,
   Calculator,
   TrendingUp,
+  Coffee,
 } from "lucide-react";
 
 const AdminUserManagement = () => {
@@ -52,6 +53,7 @@ const AdminUserManagement = () => {
     phoneNumber: "",
     contractHours: "",
     hourlyRate: "",
+    breakDurationMinutes: "",
   });
 
   // Available roles
@@ -124,6 +126,7 @@ const AdminUserManagement = () => {
         isCurrentUser: user && userData.id === user.id,
         contractHours: userData.contractHours,
         hourlyRate: userData.hourlyRate || userData.hourlyPayment,
+        breakDurationMinutes: userData.breakDurationMinutes,
       }));
 
       // Sort users: current user first, then alphabetically
@@ -237,6 +240,7 @@ const AdminUserManagement = () => {
       phoneNumber: userData.phoneNumber || "",
       contractHours: userData.contractHours || "",
       hourlyRate: userData.hourlyRate || "",
+      breakDurationMinutes: userData.breakDurationMinutes || "",
     });
 
     console.log("Edit form initialized with:", {
@@ -265,6 +269,7 @@ const AdminUserManagement = () => {
       phoneNumber: "",
       contractHours: "",
       hourlyRate: "",
+      breakDurationMinutes: "",
     });
   };
 
@@ -301,7 +306,7 @@ const AdminUserManagement = () => {
       };
 
       // Prepare compensation data separately for the payment-and-hours endpoint
-      const hasCompensationChanges = editForm.contractHours !== "" || editForm.hourlyRate !== "";
+      const hasCompensationChanges = editForm.contractHours !== "" || editForm.hourlyRate !== "" || editForm.breakDurationMinutes !== "";
       const compensationData = hasCompensationChanges ? {
         contractHours:
           editForm.contractHours === ""
@@ -311,6 +316,10 @@ const AdminUserManagement = () => {
           editForm.hourlyRate === ""
             ? null
             : parseFloat(editForm.hourlyRate),
+        breakDurationMinutes:
+          editForm.breakDurationMinutes === ""
+            ? null
+            : parseInt(editForm.breakDurationMinutes, 10),
       } : null;
 
       // Handle business unit assignment/unassignment
@@ -766,7 +775,8 @@ const AdminUserManagement = () => {
 
               {/* Compensation Section - Prominent Display */}
               {(userData.contractHours != null && userData.contractHours !== "") ||
-              (userData.hourlyRate != null && userData.hourlyRate !== "") ? (
+              (userData.hourlyRate != null && userData.hourlyRate !== "") ||
+              (userData.breakDurationMinutes != null && userData.breakDurationMinutes !== "") ? (
                 <div className="bg-gradient-to-r from-purple-50 to-blue-50 px-5 py-4 border-t border-gray-100">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-sm font-semibold text-gray-700 flex items-center">
@@ -810,6 +820,18 @@ const AdminUserManagement = () => {
                           <p className="text-xs text-gray-500">Hourly Rate</p>
                           <p className="text-sm font-semibold text-gray-900">
                             ${Number(userData.hourlyRate).toFixed(2)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {userData.breakDurationMinutes != null && userData.breakDurationMinutes !== "" && (
+                      <div className="flex items-center space-x-2">
+                        <Coffee size={14} className="text-orange-500 flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-500">Break Duration</p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {userData.breakDurationMinutes}min
                           </p>
                         </div>
                       </div>
@@ -1086,6 +1108,30 @@ const AdminUserManagement = () => {
                         />
                       </div>
                       <p className="text-xs text-gray-500 mt-1">Pay rate per hour worked</p>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-4 mt-4">
+                    <div>
+                      <label
+                        htmlFor="breakDurationMinutes"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Break Duration (minutes)
+                      </label>
+                      <input
+                        type="number"
+                        id="breakDurationMinutes"
+                        name="breakDurationMinutes"
+                        min="0"
+                        max="480"
+                        step="1"
+                        placeholder="e.g., 30"
+                        value={editForm.breakDurationMinutes || ""}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Daily break duration in minutes</p>
                     </div>
                   </div>
                   

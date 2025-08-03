@@ -20,6 +20,7 @@ import {
   Clock,
   Calculator,
   TrendingUp,
+  Coffee,
 } from "lucide-react";
 
 const TeamManagementPage = () => {
@@ -37,6 +38,7 @@ const TeamManagementPage = () => {
   const [editingMember, setEditingMember] = useState(null);
   const [editedContractHours, setEditedContractHours] = useState("");
   const [editedHourlyRate, setEditedHourlyRate] = useState("");
+  const [editedBreakDuration, setEditedBreakDuration] = useState("");
 
   // Search states for adding members
   const [searchFirstName, setSearchFirstName] = useState("");
@@ -101,6 +103,7 @@ const TeamManagementPage = () => {
           isCurrentUser: isCurrentUser,
           contractHours: member.contractHours,
           hourlyRate: member.hourlyRate || member.hourlyPayment,
+          breakDurationMinutes: member.breakDurationMinutes,
         };
       });
 
@@ -280,6 +283,7 @@ const TeamManagementPage = () => {
     // Validation
     const weeklyHours = editedContractHours === "" ? null : parseFloat(editedContractHours);
     const hourlyRate = editedHourlyRate === "" ? null : parseFloat(editedHourlyRate);
+    const breakDuration = editedBreakDuration === "" ? null : parseInt(editedBreakDuration);
     
     if (weeklyHours !== null && (weeklyHours < 0 || weeklyHours > 168)) {
       setError("Weekly hours must be between 0 and 168");
@@ -287,7 +291,12 @@ const TeamManagementPage = () => {
     }
     
     if (hourlyRate !== null && hourlyRate < 0) {
-      setError("Hourly rate cannot be negative");
+      setError("Hourly rate must be positive");
+      return;
+    }
+
+    if (breakDuration !== null && (breakDuration < 0 || breakDuration > 480)) {
+      setError("Break duration must be between 0 and 480 minutes (8 hours)");
       return;
     }
 
@@ -303,6 +312,7 @@ const TeamManagementPage = () => {
           body: JSON.stringify({
             contractHours: weeklyHours,
             hourlyPayment: hourlyRate,
+            breakDurationMinutes: breakDuration,
           }),
           headers: { "Content-Type": "application/json" },
         }
@@ -320,6 +330,7 @@ const TeamManagementPage = () => {
       setEditingMember(null);
       setEditedContractHours("");
       setEditedHourlyRate("");
+      setEditedBreakDuration("");
 
       // Refresh team members
       fetchTeamMembers();
@@ -506,6 +517,7 @@ const TeamManagementPage = () => {
                           setEditingMember(member);
                           setEditedContractHours(member.contractHours || "");
                           setEditedHourlyRate(member.hourlyRate || "");
+                          setEditedBreakDuration(member.breakDurationMinutes || "");
                           setShowEditModal(true);
                         }}
                         className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
@@ -530,7 +542,8 @@ const TeamManagementPage = () => {
 
               {/* Compensation Section - Prominent Display */}
               {(member.contractHours != null && member.contractHours !== "") ||
-              (member.hourlyRate != null && member.hourlyRate !== "") ? (
+              (member.hourlyRate != null && member.hourlyRate !== "") ||
+              (member.breakDurationMinutes != null && member.breakDurationMinutes !== "") ? (
                 <div className="bg-gradient-to-r from-blue-50 to-green-50 px-6 py-4 border-t border-gray-100">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-sm font-semibold text-gray-700 flex items-center">
@@ -553,7 +566,7 @@ const TeamManagementPage = () => {
                       )}
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {member.contractHours != null &&
                       member.contractHours !== "" && (
                         <div className="flex items-center space-x-2">
@@ -574,6 +587,18 @@ const TeamManagementPage = () => {
                           <p className="text-xs text-gray-500">Hourly Rate</p>
                           <p className="text-sm font-semibold text-gray-900">
                             ${Number(member.hourlyRate).toFixed(2)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {member.breakDurationMinutes != null && member.breakDurationMinutes !== "" && (
+                      <div className="flex items-center space-x-2">
+                        <Coffee size={14} className="text-orange-500 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-gray-500">Break Duration</p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {member.breakDurationMinutes}min
                           </p>
                         </div>
                       </div>
@@ -845,6 +870,25 @@ const TeamManagementPage = () => {
                       />
                     </div>
                     <p className="text-xs text-gray-500 mt-1">Pay rate per hour worked</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Break Duration (minutes)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="480"
+                      step="1"
+                      placeholder="e.g., 30"
+                      value={editedBreakDuration}
+                      onChange={(e) => setEditedBreakDuration(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Daily break duration in minutes</p>
                   </div>
                 </div>
                 
