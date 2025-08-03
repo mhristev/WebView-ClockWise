@@ -553,57 +553,93 @@ const BusinessUnitDayDetailModal = ({
   const groupedShifts = groupShiftsByEmployee();
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
-        {/* Modal Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <div className="flex items-center">
-            <Building className="w-6 h-6 text-blue-600 mr-3" />
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">
-                {selectedDate ? formatDate(selectedDate) : "Day Details"}
-              </h2>
-              <p className="text-sm text-gray-600">
-                Manage shifts and work sessions for all employees
-              </p>
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[92vh] overflow-hidden border border-slate-200">
+        {/* Enhanced Modal Header */}
+        <div className="relative bg-gradient-to-r from-slate-50 via-blue-50 to-slate-50 border-b border-slate-200">
+          <div className="flex items-center justify-between p-6">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 bg-blue-100 rounded-xl">
+                <Building className="w-6 h-6 text-blue-700" />
+              </div>
+              <div>
+                <h2 id="modal-title" className="text-2xl font-bold text-slate-900">
+                  {selectedDate ? formatDate(selectedDate) : "Day Details"}
+                </h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  Manage shifts and work sessions for all employees
+                </p>
+              </div>
             </div>
+            <button
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-white/80 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+              aria-label="Close modal"
+            >
+              <X className="w-6 h-6" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
         </div>
 
-        {/* Statistics Bar */}
-        <div className="bg-gray-50 p-4 border-b border-gray-200">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div className="flex items-center">
-              <Users className="w-4 h-4 text-blue-600 mr-2" />
-              <span className="text-gray-600">Employees:</span>
-              <span className="font-semibold ml-1">
-                {stats.activeEmployees}
-              </span>
-            </div>
-            <div className="flex items-center">
-              <Calendar className="w-4 h-4 text-purple-600 mr-2" />
-              <span className="text-gray-600">Shifts:</span>
-              <span className="font-semibold ml-1">{stats.totalShifts}</span>
-            </div>
-            <div className="flex items-center">
-              <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
-              <span className="text-gray-600">Confirmed:</span>
-              <span className="font-semibold ml-1">
-                {stats.confirmedSessions}
-              </span>
-            </div>
-            <div className="flex items-center">
-              <Clock className="w-4 h-4 text-orange-600 mr-2" />
-              <span className="text-gray-600">Pending:</span>
-              <span className="font-semibold ml-1">
-                {stats.pendingSessions}
-              </span>
+        {/* Enhanced Statistics Dashboard */}
+        <div className="bg-slate-50 border-b border-slate-200">
+          <div className="p-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <Users className="w-5 h-5 text-blue-700" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-slate-900">
+                      {stats.activeEmployees}
+                    </div>
+                    <div className="text-sm font-medium text-slate-600">Employees</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-purple-100 rounded-lg">
+                    <Calendar className="w-5 h-5 text-purple-700" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-slate-900">
+                      {stats.totalShifts}
+                    </div>
+                    <div className="text-sm font-medium text-slate-600">Total Shifts</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-emerald-100 rounded-lg">
+                    <CheckCircle className="w-5 h-5 text-emerald-700" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-emerald-700">
+                      {stats.confirmedSessions}
+                    </div>
+                    <div className="text-sm font-medium text-slate-600">Confirmed</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-amber-100 rounded-lg">
+                    <Clock className="w-5 h-5 text-amber-700" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-amber-700">
+                      {stats.pendingSessions}
+                    </div>
+                    <div className="text-sm font-medium text-slate-600">Pending Review</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -611,72 +647,123 @@ const BusinessUnitDayDetailModal = ({
         {/* Modal Content */}
         <div className="p-6 overflow-y-auto max-h-[60vh]">
           {error && (
-            <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3">
-              <div className="flex">
-                <AlertCircle className="w-5 h-5 text-red-400 mr-2 mt-0.5" />
-                <p className="text-red-700 text-sm">{error}</p>
+            <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4">
+              <div className="flex items-start space-x-3">
+                <div className="p-1 bg-red-100 rounded-lg">
+                  <AlertCircle className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-red-900 mb-1">Error</h4>
+                  <p className="text-red-700 text-sm">{error}</p>
+                </div>
               </div>
             </div>
           )}
 
           {localShifts.length === 0 ? (
-            <div className="text-center py-8">
-              <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">No shifts scheduled for this day.</p>
+            <div className="text-center py-12">
+              <div className="p-4 bg-slate-100 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+                <Calendar className="w-10 h-10 text-slate-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">No Shifts Scheduled</h3>
+              <p className="text-slate-600">There are no shifts scheduled for this day.</p>
             </div>
           ) : (
             <div className="space-y-6">
               {groupedShifts.map((groupedEmployee) => (
                 <div
                   key={groupedEmployee.employeeId}
-                  className="border border-gray-200 rounded-lg"
+                  className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden"
                 >
-                  {/* Employee Header */}
-                  <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                    <div className="flex items-center">
-                      <User className="w-5 h-5 text-gray-600 mr-2" />
-                      <h3 className="text-lg font-medium text-gray-900">
-                        {groupedEmployee.employeeName}
-                      </h3>
-                      <span className="ml-2 text-sm text-gray-500">
-                        {groupedEmployee.shifts.length} shift
-                        {groupedEmployee.shifts.length !== 1 ? "s" : ""}
-                      </span>
+                  {/* Enhanced Employee Header */}
+                  <div className="bg-gradient-to-r from-slate-50 to-blue-50 px-6 py-4 border-b border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                          <User className="w-5 h-5 text-blue-700" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-bold text-slate-900">
+                            {groupedEmployee.employeeName}
+                          </h3>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+                              {groupedEmployee.shifts.length} shift{groupedEmployee.shifts.length !== 1 ? "s" : ""}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Shifts for this employee */}
-                  <div className="p-4 space-y-4">
-                    {groupedEmployee.shifts.map((shift) => (
-                      <div
-                        key={shift.id}
-                        className="border border-gray-100 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                      >
-                        {/* Shift Header */}
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center">
-                            <Clock className="w-4 h-4 text-blue-600 mr-2" />
-                            <span className="font-medium text-gray-900">
-                              {formatTime(shift.startTime)} -{" "}
-                              {formatTime(shift.endTime)}
-                            </span>
-                            {shift.position && (
-                              <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                                {shift.position}
-                              </span>
-                            )}
+                  {/* Enhanced Shifts for this employee */}
+                  <div className="p-6 space-y-5">
+                    {groupedEmployee.shifts.map((shift) => {
+                      const shiftStatus = shift.workSession 
+                        ? isWorkSessionConfirmed(shift.workSession) 
+                          ? 'confirmed' 
+                          : 'pending'
+                        : 'scheduled';
+                      
+                      return (
+                        <div
+                          key={shift.id}
+                          className={`border-2 rounded-xl p-5 transition-all duration-200 hover:shadow-md ${
+                            shiftStatus === 'confirmed' ? 'border-emerald-200 bg-emerald-50/50' :
+                            shiftStatus === 'pending' ? 'border-amber-200 bg-amber-50/50' :
+                            'border-slate-200 bg-slate-50/50'
+                          }`}
+                        >
+                          {/* Enhanced Shift Header */}
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center space-x-4">
+                              <div className={`p-2 rounded-lg ${
+                                shiftStatus === 'confirmed' ? 'bg-emerald-100' :
+                                shiftStatus === 'pending' ? 'bg-amber-100' :
+                                'bg-blue-100'
+                              }`}>
+                                <Clock className={`w-5 h-5 ${
+                                  shiftStatus === 'confirmed' ? 'text-emerald-700' :
+                                  shiftStatus === 'pending' ? 'text-amber-700' :
+                                  'text-blue-700'
+                                }`} />
+                              </div>
+                              <div>
+                                <div className="font-bold text-slate-900 text-lg">
+                                  {formatTime(shift.startTime)} - {formatTime(shift.endTime)}
+                                </div>
+                                <div className="flex items-center space-x-2 mt-1">
+                                  {shift.position && (
+                                    <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
+                                      {shift.position}
+                                    </span>
+                                  )}
+                                  <span className={`px-3 py-1 text-sm font-medium rounded-full ${
+                                    shiftStatus === 'confirmed' ? 'bg-emerald-100 text-emerald-800' :
+                                    shiftStatus === 'pending' ? 'bg-amber-100 text-amber-800' :
+                                    'bg-slate-100 text-slate-800'
+                                  }`}>
+                                    {shiftStatus === 'confirmed' ? 'Confirmed' :
+                                     shiftStatus === 'pending' ? 'Pending Review' : 'Scheduled'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        </div>
 
                         {/* Work Session Details */}
                         {shift.workSession ? (
                           <div className="space-y-3">
                             {editingWorkSession === shift.id ? (
-                              // Edit Mode
-                              <div className="bg-blue-50 p-3 rounded-md">
-                                <div className="grid grid-cols-2 gap-4 mb-3">
+                              // Enhanced Edit Mode
+                              <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
+                                <h4 className="text-lg font-semibold text-blue-900 mb-4 flex items-center">
+                                  <Edit3 className="w-5 h-5 mr-2" />
+                                  Edit Work Session
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                                   <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">
                                       Clock In Time
                                     </label>
                                     <input
@@ -688,11 +775,11 @@ const BusinessUnitDayDetailModal = ({
                                           clockInTime: e.target.value,
                                         })
                                       }
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                                      className="w-full px-4 py-3 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">
                                       Clock Out Time
                                     </label>
                                     <input
@@ -704,106 +791,120 @@ const BusinessUnitDayDetailModal = ({
                                           clockOutTime: e.target.value,
                                         })
                                       }
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                                      className="w-full px-4 py-3 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                                     />
                                   </div>
                                 </div>
-                                <div className="flex space-x-2">
+                                <div className="flex space-x-3">
                                   <button
                                     onClick={() =>
                                       saveWorkSessionChanges(shift)
                                     }
                                     disabled={loading || !editForm.clockInTime}
-                                    className="flex items-center px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50"
+                                    className="flex items-center px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                   >
-                                    <Save className="w-4 h-4 mr-1" />
-                                    Save
+                                    <Save className="w-4 h-4 mr-2" />
+                                    Save Changes
                                   </button>
                                   <button
                                     onClick={cancelEditing}
                                     disabled={loading}
-                                    className="flex items-center px-3 py-1 bg-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-400"
+                                    className="flex items-center px-6 py-3 bg-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-300 transition-colors"
                                   >
-                                    <XCircle className="w-4 h-4 mr-1" />
+                                    <XCircle className="w-4 h-4 mr-2" />
                                     Cancel
                                   </button>
                                 </div>
                               </div>
                             ) : (
-                              // View Mode
-                              <div className="bg-gray-50 p-3 rounded-md">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center space-x-4 text-sm">
-                                    <span>
-                                      <strong>Clock In:</strong>{" "}
-                                      {formatTime(
-                                        shift.workSession.clockInTime
-                                      )}
-                                    </span>
-                                    <span>
-                                      <strong>Clock Out:</strong>{" "}
-                                      {formatTime(
-                                        shift.workSession.clockOutTime
-                                      )}
-                                    </span>
-                                    {shift.workSession.clockInTime &&
-                                      shift.workSession.clockOutTime && (
-                                        <span>
-                                          <strong>Duration:</strong>{" "}
-                                          {formatDuration(
-                                            shift.workSession.clockInTime,
-                                            shift.workSession.clockOutTime
-                                          )}
-                                        </span>
-                                      )}
+                              // Enhanced View Mode
+                              <div className="bg-white border border-slate-200 rounded-xl p-5">
+                                <div className="space-y-4">
+                                  {/* Time Details Grid */}
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="flex items-center space-x-3">
+                                      <div className="p-2 bg-green-100 rounded-lg">
+                                        <Clock className="w-4 h-4 text-green-700" />
+                                      </div>
+                                      <div>
+                                        <div className="text-xs font-medium text-slate-600 uppercase tracking-wider">Clock In</div>
+                                        <div className="text-lg font-bold text-slate-900">
+                                          {formatTime(shift.workSession.clockInTime)}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex items-center space-x-3">
+                                      <div className="p-2 bg-red-100 rounded-lg">
+                                        <Clock className="w-4 h-4 text-red-700" />
+                                      </div>
+                                      <div>
+                                        <div className="text-xs font-medium text-slate-600 uppercase tracking-wider">Clock Out</div>
+                                        <div className="text-lg font-bold text-slate-900">
+                                          {formatTime(shift.workSession.clockOutTime)}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    
+                                    {shift.workSession.clockInTime && shift.workSession.clockOutTime && (
+                                      <div className="flex items-center space-x-3">
+                                        <div className="p-2 bg-purple-100 rounded-lg">
+                                          <Clock className="w-4 h-4 text-purple-700" />
+                                        </div>
+                                        <div>
+                                          <div className="text-xs font-medium text-slate-600 uppercase tracking-wider">Duration</div>
+                                          <div className="text-lg font-bold text-purple-700">
+                                            {formatDuration(
+                                              shift.workSession.clockInTime,
+                                              shift.workSession.clockOutTime
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
+                                  
+                                  {/* Action Buttons */}
                                   {isManagerOrAdmin && (
-                                    <div className="flex space-x-2">
-                                      {!isWorkSessionConfirmed(
-                                        shift.workSession
-                                      ) && (
+                                    <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-200">
+                                      {!isWorkSessionConfirmed(shift.workSession) && (
                                         <button
-                                          onClick={() =>
-                                            confirmWorkSession(
-                                              shift.workSession.id
-                                            )
-                                          }
+                                          onClick={() => confirmWorkSession(shift.workSession.id)}
                                           disabled={loading}
-                                          className="flex items-center px-2 py-1 bg-green-100 text-green-700 text-xs rounded-md hover:bg-green-200"
+                                          className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
                                         >
-                                          <Check className="w-3 h-3 mr-1" />
-                                          Approve
+                                          <Check className="w-4 h-4" />
+                                          <span>Approve Session</span>
                                         </button>
                                       )}
                                       <button
-                                        onClick={() =>
-                                          startEditingWorkSession(shift)
-                                        }
+                                        onClick={() => startEditingWorkSession(shift)}
                                         disabled={loading}
-                                        className="flex items-center px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-md hover:bg-blue-200"
+                                        className="flex items-center space-x-2 px-4 py-2 bg-blue-100 text-blue-700 font-medium rounded-lg hover:bg-blue-200 transition-colors"
                                       >
-                                        <Edit3 className="w-3 h-3 mr-1" />
-                                        Edit
+                                        <Edit3 className="w-4 h-4" />
+                                        <span>Edit Times</span>
                                       </button>
                                     </div>
                                   )}
                                 </div>
 
-                                {/* Session Note */}
+                                {/* Enhanced Session Note */}
                                 {shift.workSession.sessionNote && (
-                                  <div className="mt-3 pt-3 border-t border-gray-200">
-                                    <div className="flex items-start">
-                                      <FileText className="w-4 h-4 text-gray-500 mr-2 mt-0.5" />
-                                      <div>
-                                        <span className="text-sm font-medium text-gray-700">
-                                          Note:
-                                        </span>
-                                        <p className="text-sm text-gray-600 mt-1">
-                                          {
-                                            shift.workSession.sessionNote
-                                              .content
-                                          }
-                                        </p>
+                                  <div className="mt-5 pt-4 border-t border-slate-200">
+                                    <div className="flex items-start space-x-3">
+                                      <div className="p-2 bg-slate-100 rounded-lg">
+                                        <FileText className="w-4 h-4 text-slate-600" />
+                                      </div>
+                                      <div className="flex-1">
+                                        <h5 className="text-sm font-semibold text-slate-900 mb-2">
+                                          Session Notes
+                                        </h5>
+                                        <div className="bg-slate-50 rounded-lg p-3">
+                                          <p className="text-sm text-slate-700 leading-relaxed">
+                                            {shift.workSession.sessionNote.content}
+                                          </p>
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
@@ -812,17 +913,25 @@ const BusinessUnitDayDetailModal = ({
                             )}
                           </div>
                         ) : (
-                          <div className="bg-yellow-50 p-3 rounded-md">
-                            <div className="flex items-center">
-                              <AlertCircle className="w-4 h-4 text-yellow-600 mr-2" />
-                              <span className="text-sm text-yellow-800">
-                                No work session recorded for this shift
-                              </span>
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+                            <div className="flex items-center space-x-3">
+                              <div className="p-2 bg-amber-100 rounded-lg">
+                                <AlertCircle className="w-5 h-5 text-amber-700" />
+                              </div>
+                              <div>
+                                <h4 className="text-sm font-semibold text-amber-900 mb-1">
+                                  No Work Session Recorded
+                                </h4>
+                                <p className="text-sm text-amber-800">
+                                  This shift has not been clocked in yet or work session data is missing.
+                                </p>
+                              </div>
                             </div>
                           </div>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -830,15 +939,23 @@ const BusinessUnitDayDetailModal = ({
           )}
         </div>
 
-        {/* Modal Footer */}
-        <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              Total Hours Worked: <strong>{calculateTotalHours()}</strong>
+        {/* Enhanced Modal Footer */}
+        <div className="bg-gradient-to-r from-slate-50 to-blue-50 px-6 py-5 border-t border-slate-200">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Clock className="w-5 h-5 text-blue-700" />
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-slate-600 uppercase tracking-wider">Total Hours Worked</div>
+                  <div className="text-xl font-bold text-blue-700">{calculateTotalHours()}</div>
+                </div>
+              </div>
             </div>
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
+              className="px-6 py-3 bg-slate-600 text-white font-medium rounded-xl hover:bg-slate-700 transition-colors shadow-sm"
             >
               Close
             </button>

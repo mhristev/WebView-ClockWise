@@ -45,11 +45,11 @@ const BusinessUnitCalendarView = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [businessUnitName, setBusinessUnitName] = useState("");
-  
+
   // Payroll-specific state
   const [employeeData, setEmployeeData] = useState([]);
   const [payrollLoading, setPayrollLoading] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -67,7 +67,6 @@ const BusinessUnitCalendarView = () => {
     // unless explicitly marked as confirmed (e.g., after a confirmation action)
     return false;
   };
-
 
   // Check manager/admin access
   useEffect(() => {
@@ -128,7 +127,9 @@ const BusinessUnitCalendarView = () => {
           id: member.id,
           firstName: member.firstName || "",
           lastName: member.lastName || "",
-          fullName: `${member.firstName || ""} ${member.lastName || ""}`.trim() || "Unknown Employee",
+          fullName:
+            `${member.firstName || ""} ${member.lastName || ""}`.trim() ||
+            "Unknown Employee",
           email: member.email || "",
           hourlyRate: member.hourlyRate || member.hourlyPayment || 0,
           breakDurationMinutes: member.breakDurationMinutes || 0,
@@ -179,9 +180,7 @@ const BusinessUnitCalendarView = () => {
           setScheduleData([]);
           return;
         }
-        throw new Error(
-          `Failed to fetch monthly schedule: ${response.status}`
-        );
+        throw new Error(`Failed to fetch monthly schedule: ${response.status}`);
       }
 
       const data = await response.json();
@@ -427,7 +426,6 @@ const BusinessUnitCalendarView = () => {
     let scheduledMinutes = 0;
     let workedMinutes = 0;
 
-
     scheduleData.forEach((week) => {
       week.shifts.forEach((shift) => {
         const shiftDate = parseTimestamp(shift.startTime);
@@ -498,7 +496,7 @@ const BusinessUnitCalendarView = () => {
     const payrollMap = new Map();
 
     // Initialize payroll data for all employees
-    employeeData.forEach(employee => {
+    employeeData.forEach((employee) => {
       payrollMap.set(employee.id, {
         ...employee,
         totalWorkedMinutes: 0,
@@ -520,11 +518,13 @@ const BusinessUnitCalendarView = () => {
         ) {
           const employeeId = shift.employeeId;
           let payrollData = payrollMap.get(employeeId);
-          
+
           // If employee not found in employee data, create basic entry
           if (!payrollData) {
-            const employeeName = `${shift.employeeFirstName || ""} ${shift.employeeLastName || ""}`.trim() 
-              || `Employee ${shift.employeeId.slice(-4)}`;
+            const employeeName =
+              `${shift.employeeFirstName || ""} ${
+                shift.employeeLastName || ""
+              }`.trim() || `Employee ${shift.employeeId.slice(-4)}`;
             payrollData = {
               id: employeeId,
               fullName: employeeName,
@@ -566,10 +566,7 @@ const BusinessUnitCalendarView = () => {
           }
 
           // Add break time only for shifts with COMPLETED work sessions
-          if (
-            shift.workSession &&
-            shift.workSession.status === "COMPLETED"
-          ) {
+          if (shift.workSession && shift.workSession.status === "COMPLETED") {
             payrollData.totalBreakMinutes += payrollData.breakDurationMinutes;
           }
         }
@@ -577,12 +574,18 @@ const BusinessUnitCalendarView = () => {
     });
 
     // Calculate final payroll amounts
-    Array.from(payrollMap.values()).forEach(payrollData => {
-      payrollData.payableMinutes = Math.max(0, payrollData.totalWorkedMinutes - payrollData.totalBreakMinutes);
-      payrollData.totalPay = (payrollData.payableMinutes / 60) * payrollData.hourlyRate;
+    Array.from(payrollMap.values()).forEach((payrollData) => {
+      payrollData.payableMinutes = Math.max(
+        0,
+        payrollData.totalWorkedMinutes - payrollData.totalBreakMinutes
+      );
+      payrollData.totalPay =
+        (payrollData.payableMinutes / 60) * payrollData.hourlyRate;
     });
 
-    return Array.from(payrollMap.values()).filter(data => data.numberOfShifts > 0);
+    return Array.from(payrollMap.values()).filter(
+      (data) => data.numberOfShifts > 0
+    );
   };
 
   const payrollData = React.useMemo(() => {
@@ -591,41 +594,41 @@ const BusinessUnitCalendarView = () => {
 
   // Sorting functionality
   const handleSort = (key) => {
-    let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
+    let direction = "asc";
+    if (sortConfig.key === key && sortConfig.direction === "asc") {
+      direction = "desc";
     }
     setSortConfig({ key, direction });
   };
 
-
-
   // Format currency helper
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
     }).format(amount || 0);
   };
 
   // Calculate totals
   const payrollTotals = React.useMemo(() => {
-    const totals = payrollData.reduce((acc, employee) => {
-      acc.totalHours += employee.totalWorkedMinutes / 60;
-      acc.totalPayableHours += employee.payableMinutes / 60;
-      acc.totalPay += employee.totalPay;
-      acc.totalBreakHours += employee.totalBreakMinutes / 60;
-      return acc;
-    }, {
-      totalHours: 0,
-      totalPayableHours: 0,
-      totalPay: 0,
-      totalBreakHours: 0,
-    });
+    const totals = payrollData.reduce(
+      (acc, employee) => {
+        acc.totalHours += employee.totalWorkedMinutes / 60;
+        acc.totalPayableHours += employee.payableMinutes / 60;
+        acc.totalPay += employee.totalPay;
+        acc.totalBreakHours += employee.totalBreakMinutes / 60;
+        return acc;
+      },
+      {
+        totalHours: 0,
+        totalPayableHours: 0,
+        totalPay: 0,
+        totalBreakHours: 0,
+      }
+    );
 
     return totals;
   }, [payrollData]);
-
 
   // Create a data signature that changes when work session confirmations change
   const dataSignature = React.useMemo(() => {
@@ -674,7 +677,6 @@ const BusinessUnitCalendarView = () => {
     const duration = (end - start) / (1000 * 60);
     return formatMinutesToHoursAndMinutes(duration);
   };
-
 
   const exportToPDF = () => {
     if (!businessUnitName || scheduleData.length === 0) {
@@ -843,19 +845,11 @@ const BusinessUnitCalendarView = () => {
                 >
                   <ChevronRight className="w-5 h-5" />
                 </button>
-                <button
-                  onClick={exportToPDF}
-                  className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors text-sm"
-                  disabled={loading || scheduleData.length === 0}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export PDF
-                </button>
               </div>
             </div>
 
             {/* Summary Statistics */}
-            <div className="grid grid-cols-1 md:grid-cols-7 gap-4 mb-6">
+            {/* <div className="grid grid-cols-1 md:grid-cols-7 gap-4 mb-6">
               <div className="bg-blue-50 p-4 rounded-lg">
                 <div className="flex items-center">
                   <Calendar className="w-5 h-5 text-blue-600 mr-2" />
@@ -889,7 +883,7 @@ const BusinessUnitCalendarView = () => {
                   <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
                   <div>
                     <p className="text-sm font-medium text-green-600">
-                      Confirmed
+                      Confirmed2
                     </p>
                     <p className="text-2xl font-bold text-green-900">
                       {monthlyStats.confirmedSessions}
@@ -953,7 +947,7 @@ const BusinessUnitCalendarView = () => {
                   </div>
                 </div>
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>
@@ -961,7 +955,7 @@ const BusinessUnitCalendarView = () => {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Payroll Summary Table */}
-        <PayrollSummaryTable 
+        <PayrollSummaryTable
           payrollData={payrollData}
           payrollTotals={payrollTotals}
           payrollLoading={payrollLoading}
@@ -989,14 +983,32 @@ const BusinessUnitCalendarView = () => {
             <span className="ml-3 text-gray-600">Loading calendar...</span>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow">
-            <BusinessUnitMonthlyCalendar
+          <>
+            {/* Calendar Section Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Monthly Schedule Calendar</h3>
+                <p className="text-sm text-gray-600">View and manage employee shifts for {getMonthName()}</p>
+              </div>
+              <button
+                onClick={exportToPDF}
+                className="flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                disabled={loading || scheduleData.length === 0}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export Calendar PDF
+              </button>
+            </div>
+            
+            <div className="bg-white rounded-lg shadow">
+              <BusinessUnitMonthlyCalendar
               key={`${selectedDate.year}-${selectedDate.month}-${dataSignature}`}
               scheduleData={scheduleData}
               selectedDate={selectedDate}
               onDayClick={handleDayClick}
             />
           </div>
+          </>
         )}
       </div>
 
