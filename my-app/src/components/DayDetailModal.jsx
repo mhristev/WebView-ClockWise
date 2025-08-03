@@ -210,19 +210,69 @@ const DayDetailModal = ({
   };
 
   // Confirm work session
-  const confirmWorkSession = async (workSessionId) => {
+  const confirmWorkSession = async (shift) => {
     setLoading(true);
     setError(null);
 
     try {
-      console.log("[DayDetailModal] Confirming work session:", workSessionId);
+      console.log("[DayDetailModal] Confirming work session for shift:", shift);
 
+      const workSession = shift.workSession;
+      let newClockInTime = workSession?.clockInTime;
+      let newClockOutTime = workSession?.clockOutTime;
+
+      // If clockInTime or clockOutTime are missing, use shift's start/end times
+      if (!newClockInTime) {
+        newClockInTime = shift.startTime;
+      }
+      if (!newClockOutTime) {
+        newClockOutTime = shift.endTime;
+      }
+
+      // Check if a modification is needed before confirmation
+      const needsModification =
+        (!workSession?.clockInTime && newClockInTime) ||
+        (!workSession?.clockOutTime && newClockOutTime);
+
+      let updatedWorkSessionData = null;
+
+      if (needsModification) {
+        console.log(
+          "[DayDetailModal] Populating missing clock times before confirmation:",
+          { newClockInTime, newClockOutTime }
+        );
+        
+        const modifyResponse = await authenticatedFetch(
+          API_ENDPOINTS_CONFIG.modifyWorkSession(),
+          {
+            method: "PUT",
+            body: JSON.stringify({
+              workSessionId: workSession.id,
+              newClockInTime: parseTimestamp(newClockInTime).toISOString(),
+              newClockOutTime: newClockOutTime
+                ? parseTimestamp(newClockOutTime).toISOString()
+                : null, // Handle potentially null clockOutTime
+              modifiedBy: user.id,
+            }),
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+
+        if (!modifyResponse.ok) {
+          const errorText = await modifyResponse.text();
+          throw new Error(`Failed to update work session times: ${errorText}`);
+        }
+        updatedWorkSessionData = await modifyResponse.json();
+      }
+
+      // Proceed with confirmation
+      console.log("[DayDetailModal] Confirming work session:", workSession.id);
       const response = await authenticatedFetch(
         API_ENDPOINTS_CONFIG.confirmWorkSession(),
         {
           method: "POST",
           body: JSON.stringify({
-            workSessionId,
+            workSessionId: workSession.id,
             confirmedBy: user.id,
           }),
           headers: {
@@ -232,17 +282,22 @@ const DayDetailModal = ({
       );
 
       if (!response.ok) {
-        throw new Error(`Failed to confirm work session: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`Failed to confirm work session: ${errorText}`);
       }
 
-      const updatedWorkSession = await response.json();
+      const confirmedWorkSessionData = await response.json();
+
+      // Use the modification data if available, otherwise use the confirmation data
+      const finalUpdatedWorkSession = updatedWorkSessionData || confirmedWorkSessionData;
+      
       console.log(
         "[DayDetailModal] Work session confirmed successfully:",
-        updatedWorkSession
+        finalUpdatedWorkSession
       );
 
       // Update local state immediately
-      updateLocalShift(updatedWorkSession);
+      updateLocalShift(finalUpdatedWorkSession);
 
       // Notify parent component about the update
       if (onWorkSessionUpdate) {
@@ -251,17 +306,14 @@ const DayDetailModal = ({
         );
         // Include shift ID in the notification to help parent component identify the shift
         const workSessionWithShiftInfo = {
-          ...updatedWorkSession,
-          shiftId:
-            updatedWorkSession.shiftId ||
-            localShifts.find((s) => s.workSession?.id === updatedWorkSession.id)
-              ?.id,
+          ...finalUpdatedWorkSession,
+          shiftId: finalUpdatedWorkSession.shiftId || shift.id,
         };
         console.log(
           "[DayDetailModal] Sending work session with shift info:",
           workSessionWithShiftInfo
         );
-        onWorkSessionUpdate(workSessionWithShiftInfo);
+        onWorkSessionUpdate(workSessionWithShiftInfo, true); // true indicates this is a confirmation
       }
 
       setError(null);
@@ -494,7 +546,7 @@ const DayDetailModal = ({
                               {!shift.workSession.confirmed && (
                                 <button
                                   onClick={() =>
-                                    confirmWorkSession(shift.workSession.id)
+                                    confirmWorkSession(shift)
                                   }
                                   disabled={loading}
                                   className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 text-sm transition-colors"
