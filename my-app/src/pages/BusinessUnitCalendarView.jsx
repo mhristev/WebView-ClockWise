@@ -15,8 +15,10 @@ import {
 } from "lucide-react";
 import BusinessUnitMonthlyCalendar from "../components/BusinessUnitMonthlyCalendar";
 import BusinessUnitDayDetailModal from "../components/BusinessUnitDayDetailModal";
+import PayrollSummaryTable from "../components/PayrollSummaryTable";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { USER_BASE_URL } from "../config/api";
 
 // Helper function to format minutes into hours and minutes
 const formatMinutesToHoursAndMinutes = (minutes) => {
@@ -43,11 +45,29 @@ const BusinessUnitCalendarView = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [businessUnitName, setBusinessUnitName] = useState("");
+  
+  // Payroll-specific state
+  const [employeeData, setEmployeeData] = useState([]);
+  const [payrollLoading, setPayrollLoading] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDayDate, setSelectedDayDate] = useState(null);
   const [selectedDayShifts, setSelectedDayShifts] = useState([]);
+
+  const isWorkSessionConfirmed = (workSession) => {
+    // If confirmation field is explicitly present and true, use it
+    if (typeof workSession.confirmed === "boolean") {
+      return workSession.confirmed;
+    }
+
+    // Since the backend doesn't return confirmation fields in the API response,
+    // and we need manager approval for work sessions, treat all as unconfirmed
+    // unless explicitly marked as confirmed (e.g., after a confirmation action)
+    return false;
+  };
+
 
   // Check manager/admin access
   useEffect(() => {
@@ -63,6 +83,7 @@ const BusinessUnitCalendarView = () => {
     if (user && (user.role === "MANAGER" || user.role === "ADMIN")) {
       fetchBusinessUnitInfo();
       fetchComprehensiveSchedule();
+      fetchEmployeeData();
     }
   }, [user, selectedDate]);
 
@@ -80,6 +101,47 @@ const BusinessUnitCalendarView = () => {
       }
     } catch (error) {
       console.error("Error fetching business unit info:", error);
+    }
+  };
+
+  const fetchEmployeeData = async () => {
+    setPayrollLoading(true);
+    try {
+      const businessUnitId = getRestaurantId();
+      const response = await authenticatedFetch(
+        `${USER_BASE_URL}/users/business-unit/${businessUnitId}`,
+        { method: "GET" }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        let memberList = [];
+        if (Array.isArray(data)) {
+          memberList = data;
+        } else if (data.users && Array.isArray(data.users)) {
+          memberList = data.users;
+        } else if (data.content && Array.isArray(data.content)) {
+          memberList = data.content;
+        }
+
+        const formattedEmployees = memberList.map((member) => ({
+          id: member.id,
+          firstName: member.firstName || "",
+          lastName: member.lastName || "",
+          fullName: `${member.firstName || ""} ${member.lastName || ""}`.trim() || "Unknown Employee",
+          email: member.email || "",
+          hourlyRate: member.hourlyRate || member.hourlyPayment || 0,
+          breakDurationMinutes: member.breakDurationMinutes || 0,
+          avatar: member.profilePicture || null,
+        }));
+
+        setEmployeeData(formattedEmployees);
+      }
+    } catch (error) {
+      console.error("Error fetching employee data:", error);
+      setError(`Failed to load employee data: ${error.message}`);
+    } finally {
+      setPayrollLoading(false);
     }
   };
 
@@ -365,18 +427,6 @@ const BusinessUnitCalendarView = () => {
     let scheduledMinutes = 0;
     let workedMinutes = 0;
 
-    // Helper function to determine if a work session should be treated as confirmed
-    const isWorkSessionConfirmed = (workSession) => {
-      // If confirmation field is explicitly present and true, use it
-      if (typeof workSession.confirmed === "boolean") {
-        return workSession.confirmed;
-      }
-
-      // Since the backend doesn't return confirmation fields in the API response,
-      // and we need manager approval for work sessions, treat all as unconfirmed
-      // unless explicitly marked as confirmed (e.g., after a confirmation action)
-      return false;
-    };
 
     scheduleData.forEach((week) => {
       week.shifts.forEach((shift) => {
@@ -443,6 +493,140 @@ const BusinessUnitCalendarView = () => {
     return calculateMonthlyStats();
   }, [scheduleData, selectedDate]);
 
+  // Calculate payroll data for all employees
+  const calculatePayrollData = () => {
+    const payrollMap = new Map();
+
+    // Initialize payroll data for all employees
+    employeeData.forEach(employee => {
+      payrollMap.set(employee.id, {
+        ...employee,
+        totalWorkedMinutes: 0,
+        totalBreakMinutes: 0,
+        numberOfShifts: 0,
+        completedShifts: 0,
+        payableMinutes: 0,
+        totalPay: 0,
+      });
+    });
+
+    // Process all shifts for the current month
+    scheduleData.forEach((week) => {
+      week.shifts.forEach((shift) => {
+        const shiftDate = parseTimestamp(shift.startTime);
+        if (
+          shiftDate.getFullYear() === selectedDate.year &&
+          shiftDate.getMonth() === selectedDate.month - 1
+        ) {
+          const employeeId = shift.employeeId;
+          let payrollData = payrollMap.get(employeeId);
+          
+          // If employee not found in employee data, create basic entry
+          if (!payrollData) {
+            const employeeName = `${shift.employeeFirstName || ""} ${shift.employeeLastName || ""}`.trim() 
+              || `Employee ${shift.employeeId.slice(-4)}`;
+            payrollData = {
+              id: employeeId,
+              fullName: employeeName,
+              firstName: shift.employeeFirstName || "",
+              lastName: shift.employeeLastName || "",
+              hourlyRate: 0,
+              breakDurationMinutes: 0,
+              totalWorkedMinutes: 0,
+              totalBreakMinutes: 0,
+              numberOfShifts: 0,
+              completedShifts: 0,
+              payableMinutes: 0,
+              totalPay: 0,
+              avatar: null,
+            };
+            payrollMap.set(employeeId, payrollData);
+          }
+
+          payrollData.numberOfShifts++;
+
+          // Calculate worked minutes from work sessions with COMPLETED status
+          if (
+            shift.workSession &&
+            shift.workSession.clockInTime &&
+            shift.workSession.clockOutTime &&
+            shift.workSession.status === "COMPLETED"
+          ) {
+            payrollData.completedShifts++;
+            try {
+              const start = parseTimestamp(shift.workSession.clockInTime);
+              const end = parseTimestamp(shift.workSession.clockOutTime);
+              const sessionMinutes = (end - start) / (1000 * 60);
+              if (sessionMinutes > 0) {
+                payrollData.totalWorkedMinutes += sessionMinutes;
+              }
+            } catch (error) {
+              console.error("Error calculating worked minutes:", error);
+            }
+          }
+
+          // Add break time only for shifts with COMPLETED work sessions
+          if (
+            shift.workSession &&
+            shift.workSession.status === "COMPLETED"
+          ) {
+            payrollData.totalBreakMinutes += payrollData.breakDurationMinutes;
+          }
+        }
+      });
+    });
+
+    // Calculate final payroll amounts
+    Array.from(payrollMap.values()).forEach(payrollData => {
+      payrollData.payableMinutes = Math.max(0, payrollData.totalWorkedMinutes - payrollData.totalBreakMinutes);
+      payrollData.totalPay = (payrollData.payableMinutes / 60) * payrollData.hourlyRate;
+    });
+
+    return Array.from(payrollMap.values()).filter(data => data.numberOfShifts > 0);
+  };
+
+  const payrollData = React.useMemo(() => {
+    return calculatePayrollData();
+  }, [scheduleData, employeeData, selectedDate]);
+
+  // Sorting functionality
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+
+
+  // Format currency helper
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount || 0);
+  };
+
+  // Calculate totals
+  const payrollTotals = React.useMemo(() => {
+    const totals = payrollData.reduce((acc, employee) => {
+      acc.totalHours += employee.totalWorkedMinutes / 60;
+      acc.totalPayableHours += employee.payableMinutes / 60;
+      acc.totalPay += employee.totalPay;
+      acc.totalBreakHours += employee.totalBreakMinutes / 60;
+      return acc;
+    }, {
+      totalHours: 0,
+      totalPayableHours: 0,
+      totalPay: 0,
+      totalBreakHours: 0,
+    });
+
+    return totals;
+  }, [payrollData]);
+
+
   // Create a data signature that changes when work session confirmations change
   const dataSignature = React.useMemo(() => {
     const workSessionIds = [];
@@ -491,17 +675,6 @@ const BusinessUnitCalendarView = () => {
     return formatMinutesToHoursAndMinutes(duration);
   };
 
-  const isWorkSessionConfirmed = (workSession) => {
-    // If confirmation field is explicitly present and true, use it
-    if (typeof workSession.confirmed === "boolean") {
-      return workSession.confirmed;
-    }
-
-    // Since the backend doesn't return confirmation fields in the API response,
-    // and we need manager approval for work sessions, treat all as unconfirmed
-    // unless explicitly marked as confirmed (e.g., after a confirmation action)
-    return false;
-  };
 
   const exportToPDF = () => {
     if (!businessUnitName || scheduleData.length === 0) {
@@ -787,6 +960,20 @@ const BusinessUnitCalendarView = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Payroll Summary Table */}
+        <PayrollSummaryTable 
+          payrollData={payrollData}
+          payrollTotals={payrollTotals}
+          payrollLoading={payrollLoading}
+          sortConfig={sortConfig}
+          handleSort={handleSort}
+          formatMinutesToHoursAndMinutes={formatMinutesToHoursAndMinutes}
+          formatCurrency={formatCurrency}
+          getMonthName={getMonthName}
+          businessUnitName={businessUnitName}
+          setError={setError}
+        />
+
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
             <div className="flex">
