@@ -82,6 +82,9 @@ export const API_ENDPOINTS_CONFIG = {
   // New comprehensive endpoint for business unit calendar view
   comprehensiveShifts: (businessUnitId, startDate, endDate) =>
     `${PLANNING_BASE_URL}/business-units/${businessUnitId}/shifts/comprehensive?startDate=${startDate}&endDate=${endDate}`,
+  // New monthly shifts endpoint for business unit calendar view
+  monthlyShifts: (businessUnitId, month, year) =>
+    `${PLANNING_BASE_URL}/business-units/${businessUnitId}/shifts/monthly?month=${month}&year=${year}`,
   confirmWorkSession: () => 
     `${PLANNING_BASE_URL}/work-sessions/management/confirm`,
   modifyWorkSession: () => 

@@ -92,30 +92,15 @@ const BusinessUnitCalendarView = () => {
     try {
       const businessUnitId = getRestaurantId();
 
-      // Calculate the full month date range
-      const startDate = new Date(selectedDate.year, selectedDate.month - 1, 1);
-      const endDate = new Date(
-        selectedDate.year,
-        selectedDate.month,
-        0,
-        23,
-        59,
-        59
-      );
-
-      // Format dates for the API (ISO strings)
-      const startDateISO = startDate.toISOString();
-      const endDateISO = endDate.toISOString();
-
       console.log(
-        `Fetching comprehensive schedule for ${businessUnitId} from ${startDateISO} to ${endDateISO}`
+        `Fetching monthly schedule for ${businessUnitId} for month ${selectedDate.month}, year ${selectedDate.year}`
       );
 
       const response = await authenticatedFetch(
-        API_ENDPOINTS_CONFIG.comprehensiveShifts(
+        API_ENDPOINTS_CONFIG.monthlyShifts(
           businessUnitId,
-          startDateISO,
-          endDateISO
+          selectedDate.month,
+          selectedDate.year
         ),
         {
           method: "GET",
@@ -133,18 +118,18 @@ const BusinessUnitCalendarView = () => {
           return;
         }
         throw new Error(
-          `Failed to fetch comprehensive schedule: ${response.status}`
+          `Failed to fetch monthly schedule: ${response.status}`
         );
       }
 
       const data = await response.json();
-      console.log("Fetched comprehensive schedule data:", data);
+      console.log("Fetched monthly schedule data:", data);
 
       // Transform the flat shift list into a weekly structure for the calendar component
       const transformedData = transformShiftsToWeeklyStructure(data);
       setScheduleData(transformedData);
     } catch (error) {
-      console.error("Error fetching comprehensive schedule:", error);
+      console.error("Error fetching monthly schedule:", error);
       setError(`Failed to load schedule: ${error.message}`);
     } finally {
       setLoading(false);
