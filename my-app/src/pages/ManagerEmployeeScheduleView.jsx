@@ -10,11 +10,13 @@ import {
   FileText,
   AlertCircle,
   Download,
+  DollarSign,
+  TrendingUp,
 } from "lucide-react";
 import MonthlyCalendar from "../components/MonthlyCalendar";
 import DayDetailModal from "../components/DayDetailModal";
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 
 // Helper function to format minutes into a more readable "Xh Ym" format
 const formatMinutesToHoursAndMinutes = (minutes) => {
@@ -44,6 +46,10 @@ const ManagerEmployeeScheduleView = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Payroll-specific state
+  const [employeePayrollData, setEmployeePayrollData] = useState(null);
+  const [payrollLoading, setPayrollLoading] = useState(false);
+
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDayDate, setSelectedDayDate] = useState(null);
@@ -64,6 +70,13 @@ const ManagerEmployeeScheduleView = () => {
       fetchEmployees();
     }
   }, [user, authenticatedFetch]); // Add authenticatedFetch to dependencies
+
+  // Fetch employee payroll data when selected employee changes
+  useEffect(() => {
+    if (selectedEmployee) {
+      fetchEmployeePayrollData();
+    }
+  }, [selectedEmployee, authenticatedFetch]);
 
   // Fetch schedule data when employee or date changes
   useEffect(() => {
@@ -122,6 +135,60 @@ const ManagerEmployeeScheduleView = () => {
     } catch (error) {
       console.error("Error fetching employees:", error);
       setError(`Failed to load employees: ${error.message}`);
+    }
+  };
+
+  const fetchEmployeePayrollData = async () => {
+    if (!selectedEmployee) return;
+    
+    setPayrollLoading(true);
+    try {
+      const businessUnitId = getRestaurantId();
+      const response = await authenticatedFetch(
+        `${USER_BASE_URL}/users/business-unit/${businessUnitId}`,
+        {
+          method: "GET",
+          headers: {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            Pragma: "no-cache",
+            Expires: "0",
+          },
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch employee data: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      let employeeList = [];
+      if (Array.isArray(data)) {
+        employeeList = data;
+      } else if (data.users && Array.isArray(data.users)) {
+        employeeList = data.users;
+      } else if (data.content && Array.isArray(data.content)) {
+        employeeList = data.content;
+      }
+      
+      // Find the selected employee's payroll data
+      const employee = employeeList.find(emp => emp.id === selectedEmployee);
+      if (employee) {
+        setEmployeePayrollData({
+          id: employee.id,
+          firstName: employee.firstName || "",
+          lastName: employee.lastName || "",
+          fullName: `${employee.firstName || ""} ${employee.lastName || ""}`.trim() || "Unknown Employee",
+          email: employee.email || "",
+          hourlyRate: employee.hourlyRate || employee.hourlyPayment || 0,
+          breakDurationMinutes: employee.breakDurationMinutes || 0,
+          avatar: employee.profilePicture || null,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching employee payroll data:", error);
+      setError(`Failed to load employee data: ${error.message}`);
+    } finally {
+      setPayrollLoading(false);
     }
   };
 
@@ -355,6 +422,86 @@ const ManagerEmployeeScheduleView = () => {
     return stats;
   };
 
+  // Calculate comprehensive payroll data for the selected employee
+  const calculateEmployeePayrollData = () => {
+    if (!employeePayrollData || !scheduleData.length) {
+      return {
+        totalWorkedMinutes: 0,
+        totalBreakMinutes: 0,
+        payableMinutes: 0,
+        totalPay: 0,
+        completedShifts: 0,
+        totalShifts: 0,
+        hourlyRate: employeePayrollData?.hourlyRate || 0,
+        breakDurationMinutes: employeePayrollData?.breakDurationMinutes || 0,
+      };
+    }
+
+    let totalWorkedMinutes = 0;
+    let totalBreakMinutes = 0;
+    let completedShifts = 0;
+    let totalShifts = 0;
+
+    scheduleData.forEach((week) => {
+      week.shifts.forEach((shift) => {
+        totalShifts++;
+        
+        // Only count COMPLETED work sessions for payroll
+        if (
+          shift.workSession &&
+          shift.workSession.clockInTime &&
+          shift.workSession.clockOutTime &&
+          (shift.workSession.status === "COMPLETED" || 
+           shift.workSession.clockOutTime) // Consider any session with clock out time as completed
+        ) {
+          completedShifts++;
+          
+          try {
+            const start = parseTimestamp(shift.workSession.clockInTime);
+            const end = parseTimestamp(shift.workSession.clockOutTime);
+            const sessionMinutes = (end - start) / (1000 * 60);
+            
+            if (sessionMinutes > 0) {
+              totalWorkedMinutes += sessionMinutes;
+            }
+            
+            // Add break time for each completed shift
+            totalBreakMinutes += employeePayrollData.breakDurationMinutes;
+          } catch (error) {
+            console.error("Error calculating worked minutes:", error);
+          }
+        }
+      });
+    });
+
+    const payableMinutes = Math.max(0, totalWorkedMinutes - totalBreakMinutes);
+    const totalPay = (payableMinutes / 60) * employeePayrollData.hourlyRate;
+
+    return {
+      totalWorkedMinutes,
+      totalBreakMinutes,
+      payableMinutes,
+      totalPay,
+      completedShifts,
+      totalShifts,
+      hourlyRate: employeePayrollData.hourlyRate,
+      breakDurationMinutes: employeePayrollData.breakDurationMinutes,
+    };
+  };
+
+  // Format currency helper
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(amount || 0);
+  };
+
+  // Calculate payroll data when dependencies change
+  const payrollSummary = React.useMemo(() => {
+    return calculateEmployeePayrollData();
+  }, [scheduleData, employeePayrollData]);
+
   // Modal handlers
   const handleDayClick = (date, shifts) => {
     setSelectedDayDate(date);
@@ -530,39 +677,40 @@ const ManagerEmployeeScheduleView = () => {
 
   const exportToPDF = () => {
     try {
-      if (!selectedEmployee || scheduleData.length === 0) {
+      if (!selectedEmployee || scheduleData.length === 0 || !employeePayrollData) {
         setError("No schedule data to export");
         return;
       }
 
-      console.log("Starting PDF export...");
+      console.log("Starting enhanced PDF export...");
 
-      // Test if jsPDF is working
       const doc = new jsPDF();
-      console.log("jsPDF instance created:", doc);
-
       const employeeName = getSelectedEmployeeName();
       const monthYear = getMonthName();
-      const hours = calculateTotalHours();
-
-      console.log("PDF data:", { employeeName, monthYear, hours });
+      const payroll = payrollSummary;
 
       // Title
       doc.setFontSize(20);
-      doc.text("Employee Schedule Report", 14, 20);
+      doc.text("Employee Payroll & Schedule Report", 14, 20);
 
       // Employee and month info
       doc.setFontSize(12);
       doc.text(`Employee: ${employeeName}`, 14, 30);
       doc.text(`Period: ${monthYear}`, 14, 37);
-      doc.text(
-        `Total Hours: ${formatMinutesToHoursAndMinutes(hours.total)}`,
-        14,
-        44
-      );
+      doc.text(`Hourly Rate: ${formatCurrency(payroll.hourlyRate)}`, 14, 44);
 
-      // Prepare table data
+      // Payroll summary
+      doc.setFontSize(10);
+      let summaryY = 54;
+      doc.text(`Total Hours Worked: ${formatMinutesToHoursAndMinutes(payroll.totalWorkedMinutes)}`, 14, summaryY);
+      doc.text(`Break Time: ${formatMinutesToHoursAndMinutes(payroll.totalBreakMinutes)}`, 14, summaryY + 7);
+      doc.text(`Payable Hours: ${formatMinutesToHoursAndMinutes(payroll.payableMinutes)}`, 14, summaryY + 14);
+      doc.text(`Total Payment: ${formatCurrency(payroll.totalPay)}`, 14, summaryY + 21);
+      
+      // Prepare enhanced table data
       const tableData = [];
+      let totalPaymentSum = 0;
+      
       scheduleData.forEach((week) => {
         week.shifts.forEach((shift) => {
           const shiftDate = parseTimestamp(shift.startTime);
@@ -575,151 +723,138 @@ const ManagerEmployeeScheduleView = () => {
             year: "numeric",
           });
 
-          const scheduledStart = parseTimestamp(
-            shift.startTime
-          ).toLocaleTimeString("en-US", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-          });
+          let clockInTime = "N/A";
+          let clockOutTime = "N/A";
+          let totalWorkTime = "N/A";
+          let payableTime = "N/A";
+          let shiftPayment = "$0.00";
 
-          const scheduledEnd = parseTimestamp(shift.endTime).toLocaleTimeString(
-            "en-US",
-            {
+          if (shift.workSession && shift.workSession.clockInTime && shift.workSession.clockOutTime) {
+            const clockIn = parseTimestamp(shift.workSession.clockInTime);
+            const clockOut = parseTimestamp(shift.workSession.clockOutTime);
+            
+            clockInTime = clockIn.toLocaleTimeString("en-US", {
               hour: "2-digit",
               minute: "2-digit",
               hour12: true,
-            }
-          );
-
-          let actualStart = "N/A";
-          let actualEnd = "N/A";
-          let actualHours = "N/A";
-
-          if (shift.workSession && shift.workSession.clockInTime) {
-            const clockIn = parseTimestamp(shift.workSession.clockInTime);
-            actualStart = clockIn.toLocaleTimeString("en-US", {
+            });
+            
+            clockOutTime = clockOut.toLocaleTimeString("en-US", {
               hour: "2-digit",
               minute: "2-digit",
               hour12: true,
             });
 
-            if (shift.workSession.clockOutTime) {
-              const clockOut = parseTimestamp(shift.workSession.clockOutTime);
-              actualEnd = clockOut.toLocaleTimeString("en-US", {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: true,
-              });
-
-              const workedMinutes = (clockOut - clockIn) / (1000 * 60);
-              actualHours = formatMinutesToHoursAndMinutes(workedMinutes);
-            }
+            const workedMinutes = (clockOut - clockIn) / (1000 * 60);
+            totalWorkTime = formatMinutesToHoursAndMinutes(workedMinutes);
+            
+            // Calculate payable time (worked time - break time)
+            const payableMinutes = Math.max(0, workedMinutes - payroll.breakDurationMinutes);
+            payableTime = formatMinutesToHoursAndMinutes(payableMinutes);
+            
+            // Calculate payment for this shift
+            const payment = (payableMinutes / 60) * payroll.hourlyRate;
+            shiftPayment = formatCurrency(payment);
+            totalPaymentSum += payment;
           }
 
           tableData.push([
-            dayName,
-            dateStr,
-            scheduledStart,
-            scheduledEnd,
-            actualStart,
-            actualEnd,
-            actualHours,
+            `${dayName}\n${dateStr}`,
+            clockInTime,
+            clockOutTime,
+            totalWorkTime,
+            payableTime,
+            shiftPayment,
           ]);
         });
       });
 
-      console.log("Table data prepared:", tableData.length, "rows");
-
-      // Create manual table
-      const startY = 55;
-      const columnWidths = [25, 25, 25, 25, 25, 25, 20];
+      // Use autoTable for better formatting
       const headers = [
-        "Day",
         "Date",
-        "Scheduled Start",
-        "Scheduled End",
-        "Actual Start",
-        "Actual End",
-        "Hours Worked",
+        "Clock In",
+        "Clock Out",
+        "Total Work Time",
+        "Payable Time",
+        "Payment",
       ];
-      let currentY = startY;
-
-      // Draw header
-      doc.setFillColor(59, 130, 246);
-      doc.rect(14, currentY - 8, 170, 8, "F");
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(8);
-      doc.setFont(undefined, "bold");
-
-      let xPos = 16;
-      headers.forEach((header, index) => {
-        doc.text(header, xPos, currentY - 2);
-        xPos += columnWidths[index];
+      
+      autoTable(doc, {
+        head: [headers],
+        body: tableData,
+        startY: summaryY + 30,
+        styles: {
+          fontSize: 8,
+          cellPadding: 3,
+          lineColor: [200, 200, 200],
+          lineWidth: 0.1,
+        },
+        headStyles: {
+          fillColor: [59, 130, 246],
+          textColor: 255,
+          fontStyle: 'bold',
+          halign: 'center',
+        },
+        bodyStyles: {
+          halign: 'center',
+        },
+        columnStyles: {
+          0: { halign: 'left' }, // Date column
+          5: { halign: 'right', fontStyle: 'bold' }, // Payment column
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252],
+        },
+        foot: [[
+          'TOTALS:',
+          '',
+          '',
+          formatMinutesToHoursAndMinutes(payroll.totalWorkedMinutes),
+          formatMinutesToHoursAndMinutes(payroll.payableMinutes),
+          formatCurrency(payroll.totalPay),
+        ]],
+        footStyles: {
+          fillColor: [34, 197, 94],
+          textColor: 255,
+          fontStyle: 'bold',
+          halign: 'center',
+        },
       });
 
-      // Reset text color and font
-      doc.setTextColor(0, 0, 0);
-      doc.setFont(undefined, "normal");
-
-      // Draw table rows
-      tableData.forEach((row, rowIndex) => {
-        currentY += 8;
-
-        // Draw row background (alternating colors)
-        if (rowIndex % 2 === 0) {
-          doc.setFillColor(248, 250, 252);
-          doc.rect(14, currentY - 8, 170, 8, "F");
-        }
-
-        // Draw cell borders
-        doc.setDrawColor(200, 200, 200);
-        doc.setLineWidth(0.1);
-
-        let xPos = 14;
-        columnWidths.forEach((width) => {
-          doc.line(xPos, currentY - 8, xPos, currentY);
-          xPos += width;
-        });
-        doc.line(14, currentY - 8, 184, currentY - 8);
-        doc.line(14, currentY, 184, currentY);
-
-        // Add text
-        doc.setFontSize(7);
-        xPos = 16;
-        row.forEach((cell, cellIndex) => {
-          doc.text(cell, xPos, currentY - 2);
-          xPos += columnWidths[cellIndex];
-        });
-      });
-
-      // Draw final border
-      doc.line(14, startY, 14, currentY);
-      doc.line(184, startY, 184, currentY);
-
-      // Footer
+      // Add summary section at bottom
+      const finalY = doc.lastAutoTable.finalY + 15;
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.text('Payroll Summary:', 14, finalY);
+      
       doc.setFontSize(10);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Shifts Completed: ${payroll.completedShifts} / ${payroll.totalShifts}`, 14, finalY + 10);
+      doc.text(`Break Duration per Shift: ${payroll.breakDurationMinutes} minutes`, 14, finalY + 17);
+      doc.text(`Total Break Time: ${formatMinutesToHoursAndMinutes(payroll.totalBreakMinutes)}`, 14, finalY + 24);
+      
+      // Footer
+      doc.setFontSize(8);
       doc.text(
-        `Generated on: ${new Date().toLocaleDateString()}`,
+        `Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`,
         14,
-        currentY + 15
+        finalY + 35
       );
 
       // Save PDF
       const fileName = `${employeeName.replace(
         /\s+/g,
         "_"
-      )}_${monthYear.replace(/\s+/g, "_")}_Schedule.pdf`;
+      )}_${monthYear.replace(/\s+/g, "_")}_Payroll_Report.pdf`;
 
-      console.log("Saving PDF as:", fileName);
+      console.log("Saving enhanced PDF as:", fileName);
       doc.save(fileName);
-      console.log("PDF saved successfully");
+      console.log("Enhanced PDF saved successfully");
 
       // Clear any previous errors
       setError(null);
     } catch (error) {
-      console.error("Error generating PDF:", error);
+      console.error("Error generating enhanced PDF:", error);
       setError(`Failed to generate PDF: ${error.message}`);
     }
   };
@@ -807,12 +942,12 @@ const ManagerEmployeeScheduleView = () => {
           {/* Export Button */}
           <button
             onClick={exportToPDF}
-            disabled={!selectedEmployee || scheduleData.length === 0}
+            disabled={!selectedEmployee || scheduleData.length === 0 || !employeePayrollData}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-            title="Export to PDF"
+            title="Export Payroll Report to PDF"
           >
             <Download size={16} />
-            Export PDF
+            Export Payroll PDF
           </button>
         </div>
       </div>
@@ -834,6 +969,19 @@ const ManagerEmployeeScheduleView = () => {
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
           <p className="text-gray-500">Loading schedule data...</p>
+        </div>
+      )}
+
+      {/* Empty State - No Employee Selected */}
+      {!loading && !selectedEmployee && (
+        <div className="text-center py-12 bg-white rounded-lg shadow-sm border">
+          <User size={48} className="text-gray-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Select an Employee
+          </h3>
+          <p className="text-gray-500">
+            Choose an employee from the dropdown above to view their monthly schedule and payroll summary.
+          </p>
         </div>
       )}
 
@@ -877,6 +1025,132 @@ const ManagerEmployeeScheduleView = () => {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Payroll Summary Section */}
+          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center">
+                <DollarSign className="w-6 h-6 text-green-600 mr-3" />
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Monthly Payroll Summary
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Payroll calculations based on completed work sessions
+                  </p>
+                </div>
+              </div>
+              {payrollLoading && (
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-2"></div>
+                  <span className="text-sm text-gray-600">Loading payroll data...</span>
+                </div>
+              )}
+            </div>
+
+            {/* Payroll Statistics Grid */}
+            {!employeePayrollData || payrollLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                {[...Array(5)].map((_, index) => (
+                  <div key={index} className="bg-gray-50 rounded-lg p-4 animate-pulse">
+                    <div className="flex items-center">
+                      <div className="w-5 h-5 bg-gray-300 rounded mr-2"></div>
+                      <div>
+                        <div className="h-4 bg-gray-300 rounded w-20 mb-2"></div>
+                        <div className="h-8 bg-gray-300 rounded w-16"></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <Clock className="w-5 h-5 text-blue-600 mr-2" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-600">Total Hours</p>
+                      <p className="text-2xl font-bold text-blue-900">
+                        {formatMinutesToHoursAndMinutes(payrollSummary.totalWorkedMinutes)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+              <div className="bg-orange-50 rounded-lg p-4">
+                <div className="flex items-center">
+                  <Clock className="w-5 h-5 text-orange-600 mr-2" />
+                  <div>
+                    <p className="text-sm font-medium text-orange-600">Break Time</p>
+                    <p className="text-2xl font-bold text-orange-900">
+                      {formatMinutesToHoursAndMinutes(payrollSummary.totalBreakMinutes)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-green-50 rounded-lg p-4">
+                <div className="flex items-center">
+                  <Clock className="w-5 h-5 text-green-600 mr-2" />
+                  <div>
+                    <p className="text-sm font-medium text-green-600">Payable Hours</p>
+                    <p className="text-2xl font-bold text-green-900">
+                      {formatMinutesToHoursAndMinutes(payrollSummary.payableMinutes)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-purple-50 rounded-lg p-4">
+                <div className="flex items-center">
+                  <DollarSign className="w-5 h-5 text-purple-600 mr-2" />
+                  <div>
+                    <p className="text-sm font-medium text-purple-600">Hourly Rate</p>
+                    <p className="text-2xl font-bold text-purple-900">
+                      {formatCurrency(payrollSummary.hourlyRate)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-emerald-50 rounded-lg p-4">
+                <div className="flex items-center">
+                  <TrendingUp className="w-5 h-5 text-emerald-600 mr-2" />
+                  <div>
+                    <p className="text-sm font-medium text-emerald-600">Total Pay</p>
+                    <p className="text-2xl font-bold text-emerald-900">
+                      {formatCurrency(payrollSummary.totalPay)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            )}
+
+            {/* Additional Details */}
+            {!payrollLoading && employeePayrollData && (
+            <div className="border-t pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Completed Shifts:</span>
+                  <span className="font-medium">{payrollSummary.completedShifts} / {payrollSummary.totalShifts}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Break per Shift:</span>
+                  <span className="font-medium">{payrollSummary.breakDurationMinutes} minutes</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Completion Rate:</span>
+                  <span className="font-medium">
+                    {payrollSummary.totalShifts > 0 
+                      ? Math.round((payrollSummary.completedShifts / payrollSummary.totalShifts) * 100)
+                      : 0}%
+                  </span>
+                </div>
+              </div>
+            </div>
+            )}
           </div>
 
           {/* Monthly Statistics */}
