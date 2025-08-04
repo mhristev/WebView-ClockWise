@@ -72,9 +72,13 @@ export const API_ENDPOINTS_CONFIG = {
   availabilities: (businessUnitId, startDate, endDate) => 
     `${PLANNING_BASE_URL}/business-units/${businessUnitId}/availabilities?startDate=${startDate}&endDate=${endDate}`,
   
-  // Monthly schedule endpoint for managers
+  // Monthly schedule endpoint for managers (legacy)
   monthlySchedule: (businessUnitId, userId, month, year) =>
     `${PLANNING_BASE_URL}/business-units/${businessUnitId}/users/${userId}/monthly-schedule?month=${month}&year=${year}`,
+  
+  // New monthly shifts endpoint for specific user with work sessions and notes
+  monthlyUserShifts: (businessUnitId, userId, month, year) =>
+    `${PLANNING_BASE_URL}/business-units/${businessUnitId}/users/${userId}/shifts/monthly?month=${month}&year=${year}`,
     
   // Work session management endpoints
   unconfirmedWorkSessions: (businessUnitId) => 

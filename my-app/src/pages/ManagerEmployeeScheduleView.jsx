@@ -28,6 +28,45 @@ const formatMinutesToHoursAndMinutes = (minutes) => {
   return `${hours}h ${remainingMinutes}m`;
 };
 
+// Helper function to transform flat list of shifts into weekly structure
+const transformShiftsToWeeklyStructure = (shifts, month, year) => {
+  if (!shifts || shifts.length === 0) {
+    return [];
+  }
+
+  // Group shifts by week
+  const shiftsByWeek = new Map();
+  
+  shifts.forEach(shift => {
+    const shiftDate = new Date(shift.startTime);
+    const weekStart = getWeekStart(shiftDate);
+    const weekKey = weekStart.toISOString().split('T')[0];
+    
+    if (!shiftsByWeek.has(weekKey)) {
+      shiftsByWeek.set(weekKey, {
+        scheduleId: `schedule-${weekKey}`,
+        weekStartDate: weekStart.toISOString(),
+        shifts: []
+      });
+    }
+    
+    shiftsByWeek.get(weekKey).shifts.push(shift);
+  });
+
+  // Convert Map to Array and sort by week start date
+  return Array.from(shiftsByWeek.values()).sort((a, b) => 
+    new Date(a.weekStartDate) - new Date(b.weekStartDate)
+  );
+};
+
+// Helper function to get the start of the week (Monday) for a given date
+const getWeekStart = (date) => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+  return new Date(d.setDate(diff));
+};
+
 const ManagerEmployeeScheduleView = () => {
   const { user, authenticatedFetch, getRestaurantId } = useAuth();
 
@@ -201,7 +240,7 @@ const ManagerEmployeeScheduleView = () => {
     try {
       const businessUnitId = getRestaurantId();
       const response = await authenticatedFetch(
-        API_ENDPOINTS_CONFIG.monthlySchedule(
+        API_ENDPOINTS_CONFIG.monthlyUserShifts(
           businessUnitId,
           selectedEmployee,
           selectedDate.month,
@@ -225,46 +264,37 @@ const ManagerEmployeeScheduleView = () => {
         throw new Error(`Failed to fetch schedule: ${response.status}`);
       }
 
-      const data = await response.json();
-      console.log("Fetched monthly schedule:", data);
+      const shifts = await response.json();
+      console.log("Fetched monthly shifts:", shifts);
+
+      // Transform flat list of shifts into weekly structure expected by MonthlyCalendar
+      const weeklyData = transformShiftsToWeeklyStructure(shifts, selectedDate.month, selectedDate.year);
 
       // Log details of each shift and its work session
-      data.forEach((week, weekIndex) => {
-        if (week.shifts && week.shifts.length > 0) {
-          // console.log(
-          //   `--- Week ${weekIndex + 1} starting: ${week.weekStartDate} ---`
-          // );
-          week.shifts.forEach((shift, shiftIndex) => {
-            console.log(`Shift ${shiftIndex + 1} Details:`, {
-              shiftId: shift.id,
-              scheduledTime: `${shift.startTime} - ${shift.endTime}`,
-              role: shift.role,
-              hasWorkSession: !!shift.workSession,
-              workSession: shift.workSession
-                ? {
-                    id: shift.workSession.id,
-                    clockInTime: shift.workSession.clockInTime,
-                    clockOutTime: shift.workSession.clockOutTime,
-                    confirmed: isWorkSessionConfirmed(shift.workSession),
-                    sessionNote: shift.workSession.sessionNote
-                      ? "Present"
-                      : "None",
-                  }
-                : "No work session",
-            });
-          });
-        } else {
-          console.log(
-            `--- Week ${weekIndex + 1} starting: ${
-              week.weekStartDate
-            } --- NO SHIFTS`
-          );
-        }
+      shifts.forEach((shift, shiftIndex) => {
+        console.log(`Shift ${shiftIndex + 1} Details:`, {
+          shiftId: shift.id,
+          scheduledTime: `${shift.startTime} - ${shift.endTime}`,
+          role: shift.role,
+          hasWorkSession: !!shift.workSession,
+          workSession: shift.workSession
+            ? {
+                id: shift.workSession.id,
+                clockInTime: shift.workSession.clockInTime,
+                clockOutTime: shift.workSession.clockOutTime,
+                confirmed: isWorkSessionConfirmed(shift.workSession),
+                sessionNote: shift.workSession.sessionNote
+                  ? "Present"
+                  : "None",
+              }
+            : "No work session",
+        });
       });
 
-      console.log("Schedule data structure:", {
-        totalWeeks: data.length,
-        weeks: data.map((week, index) => ({
+      console.log("Transformed schedule data structure:", {
+        totalWeeks: weeklyData.length,
+        totalShifts: shifts.length,
+        weeks: weeklyData.map((week, index) => ({
           weekIndex: index,
           scheduleId: week.scheduleId,
           weekStartDate: week.weekStartDate,
@@ -280,7 +310,7 @@ const ManagerEmployeeScheduleView = () => {
             })) || [],
         })),
       });
-      setScheduleData(data);
+      setScheduleData(weeklyData);
     } catch (error) {
       console.error("Error fetching monthly schedule:", error);
       setError(`Failed to load schedule: ${error.message}`);
@@ -364,7 +394,8 @@ const ManagerEmployeeScheduleView = () => {
     let scheduledMinutes = 0;
 
     scheduleData.forEach((week) => {
-      week.shifts.forEach((shift) => {
+      if (week.shifts) {
+        week.shifts.forEach((shift) => {
         // Calculate scheduled hours
         try {
           const startTime = parseTimestamp(shift.startTime);
@@ -391,6 +422,7 @@ const ManagerEmployeeScheduleView = () => {
           }
         }
       });
+      }
     });
 
     // Use actual worked hours if available, otherwise use scheduled hours
@@ -411,12 +443,14 @@ const ManagerEmployeeScheduleView = () => {
     };
 
     scheduleData.forEach((week) => {
-      stats.totalShifts += week.shifts.length;
-      week.shifts.forEach((shift) => {
-        if (shift.workSession && shift.workSession.clockOutTime) {
-          stats.completedShifts++;
-        }
-      });
+      if (week.shifts) {
+        stats.totalShifts += week.shifts.length;
+        week.shifts.forEach((shift) => {
+          if (shift.workSession && shift.workSession.clockOutTime) {
+            stats.completedShifts++;
+          }
+        });
+      }
     });
 
     return stats;
@@ -443,7 +477,8 @@ const ManagerEmployeeScheduleView = () => {
     let totalShifts = 0;
 
     scheduleData.forEach((week) => {
-      week.shifts.forEach((shift) => {
+      if (week.shifts) {
+        week.shifts.forEach((shift) => {
         totalShifts++;
         
         // Only count COMPLETED work sessions for payroll
@@ -471,7 +506,8 @@ const ManagerEmployeeScheduleView = () => {
             console.error("Error calculating worked minutes:", error);
           }
         }
-      });
+        });
+      }
     });
 
     const payableMinutes = Math.max(0, totalWorkedMinutes - totalBreakMinutes);
@@ -531,7 +567,7 @@ const ManagerEmployeeScheduleView = () => {
     setScheduleData((prevData) =>
       prevData.map((week) => ({
         ...week,
-        shifts: week.shifts.map((shift) => {
+        shifts: week.shifts ? week.shifts.map((shift) => {
           // Check if this shift has the work session we're updating
           if (
             shift.workSession &&
@@ -600,7 +636,7 @@ const ManagerEmployeeScheduleView = () => {
             };
           }
           return shift;
-        }),
+        }) : [],
       }))
     );
 
@@ -712,7 +748,8 @@ const ManagerEmployeeScheduleView = () => {
       let totalPaymentSum = 0;
       
       scheduleData.forEach((week) => {
-        week.shifts.forEach((shift) => {
+        if (week.shifts) {
+          week.shifts.forEach((shift) => {
           const shiftDate = parseTimestamp(shift.startTime);
           const dayName = shiftDate.toLocaleDateString("en-US", {
             weekday: "long",
@@ -766,7 +803,8 @@ const ManagerEmployeeScheduleView = () => {
             payableTime,
             shiftPayment,
           ]);
-        });
+          });
+        }
       });
 
       // Use autoTable for better formatting
