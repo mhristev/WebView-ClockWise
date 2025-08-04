@@ -54,6 +54,10 @@ export const API_ENDPOINTS_CONFIG = {
   businessUnit: (businessUnitId) => `${ORGANIZATION_BASE_URL}/business-units/${businessUnitId}`,
   companiesWithBusinessUnits: () => `${ORGANIZATION_BASE_URL}/companies/with-business-units`,
   
+  // Consumption item endpoints
+  consumptionItems: (businessUnitId) => `${ORGANIZATION_BASE_URL}/business-units/${businessUnitId}/consumption-items`,
+  consumptionItem: (businessUnitId, itemId) => `${ORGANIZATION_BASE_URL}/business-units/${businessUnitId}/consumption-items/${itemId}`,
+  
   // Schedule endpoints (using planning service)
   schedules: () => `${PLANNING_BASE_URL}/schedules`,
   scheduleById: (scheduleId) => `${PLANNING_BASE_URL}/schedules/${scheduleId}`,

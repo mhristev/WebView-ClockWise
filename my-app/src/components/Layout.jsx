@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronRight,
   DollarSign,
+  Coffee,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 
@@ -63,6 +64,11 @@ const Layout = ({ children }) => {
                 name: "Business Unit Calendar",
                 path: "/business-unit-calendar",
                 icon: Building,
+              },
+              {
+                name: "Consumption Items",
+                path: "/consumption-items",
+                icon: Coffee,
               },
             ]
           : []),

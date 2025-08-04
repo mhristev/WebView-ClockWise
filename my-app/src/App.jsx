@@ -19,6 +19,7 @@ import AdminOrganizationManagement from "./pages/AdminOrganizationManagement";
 import ManagerEmployeeScheduleView from "./pages/ManagerEmployeeScheduleView";
 import BusinessUnitCalendarView from "./pages/BusinessUnitCalendarView";
 import AdminPaycheckGenerator from "./pages/AdminPaycheckGenerator";
+import ConsumptionItemManagement from "./pages/ConsumptionItemManagement";
 
 function App() {
   return (
@@ -51,6 +52,14 @@ function App() {
                       element={
                         <ProtectedRoute requiredRole={["MANAGER", "ADMIN"]}>
                           <BusinessUnitCalendarView />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/consumption-items"
+                      element={
+                        <ProtectedRoute requiredRole={["MANAGER", "ADMIN"]}>
+                          <ConsumptionItemManagement />
                         </ProtectedRoute>
                       }
                     />
