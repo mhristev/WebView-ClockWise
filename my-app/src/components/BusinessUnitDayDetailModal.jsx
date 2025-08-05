@@ -901,9 +901,12 @@ const BusinessUnitDayDetailModal = ({
                                           Session Notes
                                         </h5>
                                         <div className="bg-slate-50 rounded-lg p-3">
-                                          <p className="text-sm text-slate-700 leading-relaxed">
+                                          <div 
+                                            className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap"
+                                            style={{ wordBreak: 'break-word' }}
+                                          >
                                             {shift.workSession.sessionNote.content}
-                                          </p>
+                                          </div>
                                         </div>
                                       </div>
                                     </div>
