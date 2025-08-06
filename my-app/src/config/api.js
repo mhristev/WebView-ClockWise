@@ -58,6 +58,9 @@ export const API_ENDPOINTS_CONFIG = {
   consumptionItems: (businessUnitId) => `${ORGANIZATION_BASE_URL}/business-units/${businessUnitId}/consumption-items`,
   consumptionItem: (businessUnitId, itemId) => `${ORGANIZATION_BASE_URL}/business-units/${businessUnitId}/consumption-items/${itemId}`,
   
+  // Consumption records endpoints  
+  consumptionRecords: (businessUnitId, params = '') => `${ORGANIZATION_BASE_URL}/consumption-records/business-unit/${businessUnitId}${params ? `?${params}` : ''}`,
+  
   // Schedule endpoints (using planning service)
   schedules: () => `${PLANNING_BASE_URL}/schedules`,
   scheduleById: (scheduleId) => `${PLANNING_BASE_URL}/schedules/${scheduleId}`,
@@ -85,6 +88,7 @@ export const API_ENDPOINTS_CONFIG = {
     `${PLANNING_BASE_URL}/business-units/${businessUnitId}/users/${userId}/shifts/monthly?month=${month}&year=${year}`,
     
   // Work session management endpoints
+  workSessionById: (workSessionId) => `${PLANNING_BASE_URL}/work-sessions/${workSessionId}`,
   unconfirmedWorkSessions: (businessUnitId) => 
     `${PLANNING_BASE_URL}/work-sessions/management/business-units/${businessUnitId}/unconfirmed`,
   // New comprehensive endpoint for business unit calendar view

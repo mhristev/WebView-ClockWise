@@ -70,6 +70,11 @@ const Layout = ({ children }) => {
                 path: "/consumption-items",
                 icon: Coffee,
               },
+              {
+                name: "Consumption Records",
+                path: "/consumption-records",
+                icon: ClipboardList,
+              },
             ]
           : []),
         {
