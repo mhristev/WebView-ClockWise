@@ -52,6 +52,7 @@ export const API_ENDPOINTS_CONFIG = {
   // Organization endpoints
   getAllBusinessUnits: () => `${ORGANIZATION_BASE_URL}/business-units`,
   businessUnit: (businessUnitId) => `${ORGANIZATION_BASE_URL}/business-units/${businessUnitId}`,
+  updateBusinessUnitDetails: (businessUnitId) => `${ORGANIZATION_BASE_URL}/business-units/${businessUnitId}/details`,
   companiesWithBusinessUnits: () => `${ORGANIZATION_BASE_URL}/companies/with-business-units`,
   
   // Consumption item endpoints

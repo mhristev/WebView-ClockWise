@@ -10,6 +10,11 @@ import {
   Phone,
   Mail,
   Briefcase,
+  Edit3,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+  X,
 } from "lucide-react";
 import { API_ENDPOINTS_CONFIG, ORGANIZATION_BASE_URL } from "../config/api";
 
@@ -19,6 +24,19 @@ const BusinessUnitPage = () => {
   const [businessUnit, setBusinessUnit] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Edit mode states
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState({
+    description: "",
+    phoneNumber: "",
+    email: "",
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [showErrorToast, setShowErrorToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
 
   useEffect(() => {
     const fetchBusinessUnit = async () => {
@@ -37,6 +55,12 @@ const BusinessUnitPage = () => {
         if (response.ok) {
           const data = await response.json();
           setBusinessUnit(data);
+          // Initialize edit data when business unit is loaded
+          setEditData({
+            description: data.description || "",
+            phoneNumber: data.phoneNumber || "",
+            email: data.email || "",
+          });
         } else {
           // If API fails or returns null, use fallback data
           console.warn("Failed to fetch business unit details from API.");
@@ -53,6 +77,158 @@ const BusinessUnitPage = () => {
 
     fetchBusinessUnit();
   }, [user, authenticatedFetch]); // Add authenticatedFetch
+
+  // Auto-dismiss toast after 5 seconds
+  useEffect(() => {
+    if (showSuccessToast || showErrorToast) {
+      const timer = setTimeout(() => {
+        setShowSuccessToast(false);
+        setShowErrorToast(false);
+        setToastMessage("");
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSuccessToast, showErrorToast]);
+
+  // Validation functions
+  const validateField = (name, value) => {
+    const errors = {};
+
+    if (name === "email" && value) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(value)) {
+        errors.email = "Please enter a valid email address";
+      } else if (value.length > 100) {
+        errors.email = "Email must be less than 100 characters";
+      }
+    }
+
+    if (name === "phoneNumber" && value) {
+      const phoneRegex =
+        /^[+]?[1-9][\d]{0,14}$|^\([\d]{3}\)[\s-]?[\d]{3}[\s-]?[\d]{4}$|^[\d]{3}[\s-]?[\d]{3}[\s-]?[\d]{4}$/;
+      if (!phoneRegex.test(value.replace(/[\s\-()]/g, ""))) {
+        errors.phoneNumber = "Please enter a valid phone number";
+      }
+    }
+
+    if (name === "description" && value && value.length > 500) {
+      errors.description = "Description must be less than 500 characters";
+    }
+
+    return errors;
+  };
+
+  const validateAllFields = () => {
+    let allErrors = {};
+    Object.keys(editData).forEach((field) => {
+      const fieldErrors = validateField(field, editData[field]);
+      allErrors = { ...allErrors, ...fieldErrors };
+    });
+    return allErrors;
+  };
+
+  // Edit mode handlers
+  const handleEditToggle = () => {
+    setIsEditing(true);
+    setEditData({
+      description: businessUnit.description || "",
+      phoneNumber: businessUnit.phoneNumber || "",
+      email: businessUnit.email || "",
+    });
+    setValidationErrors({});
+
+    // Focus first field after state update
+    setTimeout(() => {
+      document.getElementById("edit-description")?.focus();
+    }, 0);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditData({
+      description: businessUnit.description || "",
+      phoneNumber: businessUnit.phoneNumber || "",
+      email: businessUnit.email || "",
+    });
+    setValidationErrors({});
+  };
+
+  const handleInputChange = (field, value) => {
+    setEditData({ ...editData, [field]: value });
+
+    // Clear validation error for this field
+    if (validationErrors[field]) {
+      setValidationErrors({ ...validationErrors, [field]: undefined });
+    }
+  };
+
+  const handleInputBlur = (field, value) => {
+    const errors = validateField(field, value);
+    setValidationErrors({ ...validationErrors, ...errors });
+  };
+
+  const hasChanges = () => {
+    return (
+      editData.description !== (businessUnit.description || "") ||
+      editData.phoneNumber !== (businessUnit.phoneNumber || "") ||
+      editData.email !== (businessUnit.email || "")
+    );
+  };
+
+  const handleSave = async () => {
+    // Validate all fields
+    const errors = validateAllFields();
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const updateData = {
+        description: editData.description || null,
+        phoneNumber: editData.phoneNumber || null,
+        email: editData.email || null,
+      };
+
+      const response = await authenticatedFetch(
+        API_ENDPOINTS_CONFIG.updateBusinessUnitDetails(businessUnit.id),
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(updateData),
+        }
+      );
+
+      if (response.ok) {
+        const updatedBusinessUnit = await response.json();
+        setBusinessUnit(updatedBusinessUnit);
+        setIsEditing(false);
+        setToastMessage("Business unit updated successfully");
+        setShowSuccessToast(true);
+      } else {
+        throw new Error("Failed to update business unit");
+      }
+    } catch (error) {
+      console.error("Error updating business unit:", error);
+      setToastMessage("Failed to update business unit. Please try again.");
+      setShowErrorToast(true);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const getInputClassName = (fieldName) => {
+    const hasError = validationErrors[fieldName];
+    return `block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent sm:text-sm ${
+      hasError
+        ? "border-red-300 focus:ring-red-500"
+        : "border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+    }`;
+  };
 
   if (isLoading) {
     return (
@@ -111,7 +287,40 @@ const BusinessUnitPage = () => {
                       <FileText size={16} className="mr-2" /> Description
                     </dt>
                     <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                      {businessUnit.description}
+                      {isEditing ? (
+                        <div className="space-y-1">
+                          <textarea
+                            id="edit-description"
+                            value={editData.description}
+                            onChange={(e) =>
+                              handleInputChange("description", e.target.value)
+                            }
+                            onBlur={(e) =>
+                              handleInputBlur("description", e.target.value)
+                            }
+                            className={`${getInputClassName(
+                              "description"
+                            )} resize-vertical min-h-20`}
+                            placeholder="Enter business unit description..."
+                            rows={3}
+                            disabled={isSaving}
+                          />
+                          {validationErrors.description && (
+                            <p className="text-sm text-red-600 flex items-center">
+                              <AlertCircle size={16} className="mr-1" />
+                              {validationErrors.description}
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-500">
+                            {editData.description.length}/500 characters
+                          </p>
+                        </div>
+                      ) : (
+                        <span>
+                          {businessUnit.description ||
+                            "No description provided"}
+                        </span>
+                      )}
                     </dd>
                   </div>
                 </dl>
@@ -166,15 +375,27 @@ const BusinessUnitPage = () => {
               </div>
             </div>
 
-            <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-              <div className="px-4 py-5 sm:px-6">
-                <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center">
-                  <Briefcase size={20} className="mr-2" /> Business Contact
-                  Information
-                </h3>
-                <p className="mt-1 max-w-2xl text-sm text-gray-500">
-                  Contact details for this business unit
-                </p>
+            <div className="bg-white shadow overflow-hidden sm:rounded-lg relative">
+              <div className="px-4 py-5 sm:px-6 flex justify-between items-start">
+                <div>
+                  <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center">
+                    <Briefcase size={20} className="mr-2" /> Business Contact
+                    Information
+                  </h3>
+                  <p className="mt-1 max-w-2xl text-sm text-gray-500">
+                    Contact details for this business unit
+                  </p>
+                </div>
+                {user?.role === "MANAGER" && !isEditing && (
+                  <button
+                    onClick={handleEditToggle}
+                    className="inline-flex items-center px-2 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                    title="Edit contact information"
+                  >
+                    <Edit3 size={16} className="mr-1" />
+                    Edit
+                  </button>
+                )}
               </div>
 
               <div className="border-t border-gray-200">
@@ -184,7 +405,34 @@ const BusinessUnitPage = () => {
                       <Phone size={16} className="mr-2" /> Phone
                     </dt>
                     <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                      (555) 123-4567
+                      {isEditing ? (
+                        <div className="space-y-1">
+                          <input
+                            type="tel"
+                            value={editData.phoneNumber}
+                            onChange={(e) =>
+                              handleInputChange("phoneNumber", e.target.value)
+                            }
+                            onBlur={(e) =>
+                              handleInputBlur("phoneNumber", e.target.value)
+                            }
+                            className={getInputClassName("phoneNumber")}
+                            placeholder="(555) 123-4567"
+                            disabled={isSaving}
+                          />
+                          {validationErrors.phoneNumber && (
+                            <p className="text-sm text-red-600 flex items-center">
+                              <AlertCircle size={16} className="mr-1" />
+                              {validationErrors.phoneNumber}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <span>
+                          {businessUnit.phoneNumber ||
+                            "No phone number provided"}
+                        </span>
+                      )}
                     </dd>
                   </div>
 
@@ -193,15 +441,128 @@ const BusinessUnitPage = () => {
                       <Mail size={16} className="mr-2" /> Email
                     </dt>
                     <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                      {businessUnit.name?.toLowerCase().replace(/\s+/g, ".")}
-                      @clockwise.example.com
+                      {isEditing ? (
+                        <div className="space-y-1">
+                          <input
+                            type="email"
+                            value={editData.email}
+                            onChange={(e) =>
+                              handleInputChange("email", e.target.value)
+                            }
+                            onBlur={(e) =>
+                              handleInputBlur("email", e.target.value)
+                            }
+                            className={getInputClassName("email")}
+                            placeholder="business@example.com"
+                            disabled={isSaving}
+                          />
+                          {validationErrors.email && (
+                            <p className="text-sm text-red-600 flex items-center">
+                              <AlertCircle size={16} className="mr-1" />
+                              {validationErrors.email}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <span>{businessUnit.email || "No email provided"}</span>
+                      )}
                     </dd>
                   </div>
                 </dl>
               </div>
+
+              {/* Save/Cancel Actions */}
+              {isEditing && (
+                <div className="px-4 py-4 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
+                  <button
+                    onClick={handleCancel}
+                    disabled={isSaving}
+                    className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed order-2 sm:order-1"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving || !hasChanges()}
+                    className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center order-1 sm:order-2"
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 size={16} className="mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save Changes"
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Loading overlay during save */}
+              {isSaving && (
+                <div className="absolute inset-0 bg-white bg-opacity-50 flex items-center justify-center rounded-md">
+                  <div className="flex items-center text-sm text-gray-600">
+                    <Loader2 size={16} className="mr-2 animate-spin" />
+                    Updating...
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
+
+        {/* Success Toast */}
+        {showSuccessToast && (
+          <div className="fixed top-4 right-4 z-50 bg-green-50 border border-green-200 rounded-md p-4 shadow-lg max-w-sm">
+            <div className="flex items-start">
+              <CheckCircle
+                size={20}
+                className="text-green-600 mr-3 flex-shrink-0 mt-0.5"
+              />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-green-800">
+                  {toastMessage}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowSuccessToast(false)}
+                className="ml-2 text-green-400 hover:text-green-600"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Error Toast */}
+        {showErrorToast && (
+          <div className="fixed top-4 right-4 z-50 bg-red-50 border border-red-200 rounded-md p-4 shadow-lg max-w-sm">
+            <div className="flex items-start">
+              <AlertCircle
+                size={20}
+                className="text-red-600 mr-3 flex-shrink-0 mt-0.5"
+              />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-800">
+                  {toastMessage}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowErrorToast(false)}
+                className="ml-2 text-red-400 hover:text-red-600"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Screen reader announcements */}
+        <div aria-live="polite" aria-atomic="true" className="sr-only">
+          {isSaving && "Saving changes..."}
+          {showSuccessToast && "Changes saved successfully"}
+          {showErrorToast && "Error saving changes"}
+        </div>
       </div>
     </div>
   );
