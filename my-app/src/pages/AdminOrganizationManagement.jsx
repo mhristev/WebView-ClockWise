@@ -17,10 +17,14 @@ import {
   MapPin,
   Building,
   FileText,
+  Phone,
+  Mail,
+  Navigation,
+  Radius,
 } from "lucide-react";
 
 const AdminOrganizationManagement = () => {
-  const { authenticatedFetch } = useAuth();
+  const { authenticatedFetch, user, getAuthHeaders } = useAuth();
   const [companiesWithBusinessUnits, setCompaniesWithBusinessUnits] = useState(
     []
   );
@@ -49,6 +53,8 @@ const AdminOrganizationManagement = () => {
   const [companyForm, setCompanyForm] = useState({
     name: "",
     description: "",
+    phoneNumber: "",
+    email: "",
   });
 
   const [businessUnitForm, setBusinessUnitForm] = useState({
@@ -56,6 +62,11 @@ const AdminOrganizationManagement = () => {
     location: "",
     description: "",
     companyId: "",
+    latitude: "",
+    longitude: "",
+    phoneNumber: "",
+    email: "",
+    allowedRadius: "200",
   });
 
   // Auto-dismiss messages
@@ -195,7 +206,7 @@ const AdminOrganizationManagement = () => {
   // Company CRUD operations
   const handleCreateCompany = () => {
     setEditingCompany(null);
-    setCompanyForm({ name: "", description: "" });
+    setCompanyForm({ name: "", description: "", phoneNumber: "", email: "" });
     setShowCompanyModal(true);
   };
 
@@ -204,6 +215,8 @@ const AdminOrganizationManagement = () => {
     setCompanyForm({
       name: company.name,
       description: company.description,
+      phoneNumber: company.phoneNumber || "",
+      email: company.email || "",
     });
     setShowCompanyModal(true);
   };
@@ -225,8 +238,17 @@ const AdminOrganizationManagement = () => {
       const method = editingCompany ? "PUT" : "POST";
 
       const body = editingCompany
-        ? { ...companyForm, id: editingCompany.id }
-        : companyForm;
+        ? { 
+            ...companyForm, 
+            id: editingCompany.id,
+            phoneNumber: companyForm.phoneNumber || null,
+            email: companyForm.email || null,
+          }
+        : {
+            ...companyForm,
+            phoneNumber: companyForm.phoneNumber || null,
+            email: companyForm.email || null,
+          };
 
       const response = await authenticatedFetch(url, {
         method,
@@ -315,6 +337,11 @@ const AdminOrganizationManagement = () => {
       location: "",
       description: "",
       companyId: company.id,
+      latitude: "",
+      longitude: "",
+      phoneNumber: "",
+      email: "",
+      allowedRadius: "200",
     });
     setShowBusinessUnitModal(true);
   };
@@ -326,6 +353,11 @@ const AdminOrganizationManagement = () => {
       location: businessUnit.location,
       description: businessUnit.description,
       companyId: businessUnit.companyId,
+      latitude: businessUnit.latitude || "",
+      longitude: businessUnit.longitude || "",
+      phoneNumber: businessUnit.phoneNumber || "",
+      email: businessUnit.email || "",
+      allowedRadius: businessUnit.allowedRadius || "200",
     });
     setShowBusinessUnitModal(true);
   };
@@ -341,13 +373,23 @@ const AdminOrganizationManagement = () => {
 
     try {
       const url = editingBusinessUnit
-        ? `${ORGANIZATION_BASE_URL}/business-units/${editingBusinessUnit.id}`
+        ? `${ORGANIZATION_BASE_URL}/business-units/${editingBusinessUnit.id}/complete`
         : `${ORGANIZATION_BASE_URL}/business-units`;
 
       const method = editingBusinessUnit ? "PUT" : "POST";
 
+      // Prepare body with proper field mapping for the new endpoint
       const body = editingBusinessUnit
-        ? { ...businessUnitForm, id: editingBusinessUnit.id }
+        ? {
+            name: businessUnitForm.name,
+            location: businessUnitForm.location,
+            description: businessUnitForm.description,
+            latitude: businessUnitForm.latitude ? parseFloat(businessUnitForm.latitude) : null,
+            longitude: businessUnitForm.longitude ? parseFloat(businessUnitForm.longitude) : null,
+            phoneNumber: businessUnitForm.phoneNumber || null,
+            email: businessUnitForm.email || null,
+            allowedRadius: parseFloat(businessUnitForm.allowedRadius) || 200.0,
+          }
         : businessUnitForm;
 
       const response = await authenticatedFetch(url, {
@@ -385,7 +427,7 @@ const AdminOrganizationManagement = () => {
   const handleCloseCompanyModal = () => {
     setShowCompanyModal(false);
     setEditingCompany(null);
-    setCompanyForm({ name: "", description: "" });
+    setCompanyForm({ name: "", description: "", phoneNumber: "", email: "" });
   };
 
   const handleCloseBusinessUnitModal = () => {
@@ -396,6 +438,11 @@ const AdminOrganizationManagement = () => {
       location: "",
       description: "",
       companyId: "",
+      latitude: "",
+      longitude: "",
+      phoneNumber: "",
+      email: "",
+      allowedRadius: "200",
     });
   };
 
@@ -520,10 +567,29 @@ const AdminOrganizationManagement = () => {
                                   <Building className="h-5 w-5 mr-2" />
                                   {company.name}
                                 </h3>
-                                <p className="text-sm text-gray-600">
+                                <p className="text-sm text-gray-600 mb-2">
                                   {company.description}
                                 </p>
-                                <div className="text-xs text-gray-500 mt-1">
+                                
+                                {/* Company Contact Information */}
+                                {(company.phoneNumber || company.email) && (
+                                  <div className="flex flex-wrap gap-4 text-xs text-gray-600 mb-2">
+                                    {company.phoneNumber && (
+                                      <div className="flex items-center">
+                                        <Phone className="h-3 w-3 mr-1" />
+                                        {company.phoneNumber}
+                                      </div>
+                                    )}
+                                    {company.email && (
+                                      <div className="flex items-center">
+                                        <Mail className="h-3 w-3 mr-1" />
+                                        {company.email}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                
+                                <div className="text-xs text-gray-500">
                                   Business Units: {company.businessUnits.length}
                                 </div>
                               </div>
@@ -571,21 +637,62 @@ const AdminOrganizationManagement = () => {
                                 company.businessUnits.map((businessUnit) => (
                                   <div
                                     key={businessUnit.id}
-                                    className="bg-gray-50 border border-gray-200 rounded-md p-3"
+                                    className="bg-gray-50 border border-gray-200 rounded-md p-4"
                                   >
-                                    <div className="flex items-start justify-between">
+                                    <div className="flex items-start justify-between mb-3">
                                       <div className="flex-1">
-                                        <h4 className="font-medium text-gray-900 flex items-center">
+                                        <h4 className="font-medium text-gray-900 flex items-center mb-2">
                                           <Building2 className="h-4 w-4 mr-2" />
                                           {businessUnit.name}
                                         </h4>
-                                        <div className="flex items-center text-sm text-gray-600 mt-1">
-                                          <MapPin className="h-4 w-4 mr-1" />
-                                          {businessUnit.location}
+                                        
+                                        {/* Basic Info */}
+                                        <div className="grid grid-cols-1 gap-2 text-sm text-gray-600">
+                                          <div className="flex items-center">
+                                            <MapPin className="h-3 w-3 mr-2" />
+                                            {businessUnit.location}
+                                          </div>
+                                          <div className="flex items-start">
+                                            <FileText className="h-3 w-3 mr-2 mt-0.5" />
+                                            <span className="flex-1">{businessUnit.description}</span>
+                                          </div>
                                         </div>
-                                        <p className="text-sm text-gray-600 mt-1">
-                                          {businessUnit.description}
-                                        </p>
+
+                                        {/* Contact Information */}
+                                        {(businessUnit.phoneNumber || businessUnit.email) && (
+                                          <div className="grid grid-cols-1 gap-2 text-sm text-gray-600 mt-3 pt-2 border-t border-gray-200">
+                                            {businessUnit.phoneNumber && (
+                                              <div className="flex items-center">
+                                                <Phone className="h-3 w-3 mr-2" />
+                                                {businessUnit.phoneNumber}
+                                              </div>
+                                            )}
+                                            {businessUnit.email && (
+                                              <div className="flex items-center">
+                                                <Mail className="h-3 w-3 mr-2" />
+                                                {businessUnit.email}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+
+                                        {/* Coordinates & Radius */}
+                                        {(businessUnit.latitude || businessUnit.longitude || businessUnit.allowedRadius) && (
+                                          <div className="grid grid-cols-1 gap-2 text-sm text-gray-600 mt-3 pt-2 border-t border-gray-200">
+                                            {(businessUnit.latitude && businessUnit.longitude) && (
+                                              <div className="flex items-center">
+                                                <Navigation className="h-3 w-3 mr-2" />
+                                                {businessUnit.latitude}°, {businessUnit.longitude}°
+                                              </div>
+                                            )}
+                                            {businessUnit.allowedRadius && (
+                                              <div className="flex items-center">
+                                                <Radius className="h-3 w-3 mr-2" />
+                                                Radius: {businessUnit.allowedRadius}m
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
                                       <div className="flex space-x-2 ml-4">
                                         <button
@@ -695,6 +802,51 @@ const AdminOrganizationManagement = () => {
                     </p>
                   )}
                 </div>
+
+                {/* Contact Information */}
+                <div>
+                  <label
+                    htmlFor="companyPhoneNumber"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    id="companyPhoneNumber"
+                    value={companyForm.phoneNumber}
+                    onChange={(e) =>
+                      setCompanyForm({
+                        ...companyForm,
+                        phoneNumber: e.target.value,
+                      })
+                    }
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter company phone number"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="companyEmail"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    id="companyEmail"
+                    value={companyForm.email}
+                    onChange={(e) =>
+                      setCompanyForm({
+                        ...companyForm,
+                        email: e.target.value,
+                      })
+                    }
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter company email address"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end space-x-3 mt-6">
@@ -724,7 +876,7 @@ const AdminOrganizationManagement = () => {
       {/* Business Unit Modal */}
       {showBusinessUnitModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+          <div className="relative top-10 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900">
@@ -852,6 +1004,122 @@ const AdminOrganizationManagement = () => {
                       Company selection is required
                     </p>
                   )}
+                </div>
+
+                {/* Coordinates Section */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label
+                      htmlFor="businessUnitLatitude"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      Latitude
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      id="businessUnitLatitude"
+                      value={businessUnitForm.latitude}
+                      onChange={(e) =>
+                        setBusinessUnitForm({
+                          ...businessUnitForm,
+                          latitude: e.target.value,
+                        })
+                      }
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="e.g., 40.7128"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="businessUnitLongitude"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      Longitude
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      id="businessUnitLongitude"
+                      value={businessUnitForm.longitude}
+                      onChange={(e) =>
+                        setBusinessUnitForm({
+                          ...businessUnitForm,
+                          longitude: e.target.value,
+                        })
+                      }
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="e.g., -74.0060"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="businessUnitAllowedRadius"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      Radius (m)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      id="businessUnitAllowedRadius"
+                      value={businessUnitForm.allowedRadius}
+                      onChange={(e) =>
+                        setBusinessUnitForm({
+                          ...businessUnitForm,
+                          allowedRadius: e.target.value,
+                        })
+                      }
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="200"
+                    />
+                  </div>
+                </div>
+
+                {/* Contact Information Section */}
+                <div>
+                  <label
+                    htmlFor="businessUnitPhoneNumber"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    id="businessUnitPhoneNumber"
+                    value={businessUnitForm.phoneNumber}
+                    onChange={(e) =>
+                      setBusinessUnitForm({
+                        ...businessUnitForm,
+                        phoneNumber: e.target.value,
+                      })
+                    }
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter phone number"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="businessUnitEmail"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    id="businessUnitEmail"
+                    value={businessUnitForm.email}
+                    onChange={(e) =>
+                      setBusinessUnitForm({
+                        ...businessUnitForm,
+                        email: e.target.value,
+                      })
+                    }
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter email address"
+                  />
                 </div>
               </div>
 
