@@ -472,23 +472,23 @@ const TeamManagementPage = () => {
                   </div>
 
                   {/* Actions */}
-                  {!member.isCurrentUser && (
-                    <div className="flex space-x-1">
-                      <button
-                        onClick={() => {
-                          setEditingMember(member);
-                          setEditedContractHours(member.contractHours || "");
-                          setEditedHourlyRate(member.hourlyRate || "");
-                          setEditedBreakDuration(
-                            member.breakDurationMinutes || ""
-                          );
-                          setShowEditModal(true);
-                        }}
-                        className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Edit compensation"
-                      >
-                        <Edit3 size={16} />
-                      </button>
+                  <div className="flex space-x-1">
+                    <button
+                      onClick={() => {
+                        setEditingMember(member);
+                        setEditedContractHours(member.contractHours || "");
+                        setEditedHourlyRate(member.hourlyRate || "");
+                        setEditedBreakDuration(
+                          member.breakDurationMinutes || ""
+                        );
+                        setShowEditModal(true);
+                      }}
+                      className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Edit compensation"
+                    >
+                      <Edit3 size={16} />
+                    </button>
+                    {!member.isCurrentUser && (
                       <button
                         onClick={() => {
                           setSelectedMember(member);
@@ -499,8 +499,8 @@ const TeamManagementPage = () => {
                       >
                         <Trash2 size={16} />
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
 
