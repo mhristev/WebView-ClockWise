@@ -396,23 +396,22 @@ function ScheduleApp() {
       // Process the availabilities
       const availabilitiesByEmployee = {};
       data.forEach((availability) => {
-        const employeeId = availability.userId;
+        const employeeId = availability.employeeId; // Use employeeId instead of userId
         if (!availabilitiesByEmployee[employeeId]) {
-          availabilitiesByEmployee[employeeId] = {};
+          availabilitiesByEmployee[employeeId] = [];
         }
 
-        const date = new Date(availability.date);
-        const dayIndex = date.getDay() === 0 ? 6 : date.getDay() - 1; // Convert to 0=Mon, 6=Sun
-
-        availabilitiesByEmployee[employeeId][dayIndex] = {
+        // Store the raw availability data as it comes from the API
+        // The timestamps will be parsed later when needed
+        availabilitiesByEmployee[employeeId].push({
           id: availability.id,
-          type: availability.type,
           startTime: availability.startTime,
           endTime: availability.endTime,
-          note: availability.note,
-        };
+          businessUnitId: availability.businessUnitId,
+        });
       });
 
+      console.log('Processed availabilities by employee:', availabilitiesByEmployee);
       setEmployeeAvailabilities(availabilitiesByEmployee);
     } catch (error) {
       console.error("Error fetching availabilities:", error);
@@ -1877,18 +1876,41 @@ function ScheduleApp() {
     const dayDate = new Date(currentWeekStart);
     // Add the day offset (0 = Monday, 6 = Sunday)
     dayDate.setDate(dayDate.getDate() + Number(day));
-    // Reset time to start of day
+    // Reset time to start of day for comparison
     dayDate.setHours(0, 0, 0, 0);
+
+    console.log(`Getting availabilities for employee ${employeeId} on day ${day}`, {
+      dayDate: dayDate.toDateString(),
+      availabilities: employeeAvailabilities[employeeId]
+    });
 
     const availabilities = employeeAvailabilities[employeeId].filter(
       (availability) => {
-        // Get the date from availability's start time, ignoring time part
-        const availabilityDate = new Date(availability.startTime);
-        availabilityDate.setHours(0, 0, 0, 0);
+        const availStartDate = parseTimestamp(availability.startTime);
+        const availEndDate = parseTimestamp(availability.endTime);
+        
+        if (!availStartDate || !availEndDate) {
+          console.warn('Invalid availability dates:', availability);
+          return false;
+        }
 
-        // Compare just the dates (ignoring time)
-        const match = availabilityDate.getTime() === dayDate.getTime();
-        return match;
+        // Check if the availability date matches this specific day
+        const availStartDay = new Date(availStartDate);
+        availStartDay.setHours(0, 0, 0, 0);
+        
+        console.log(`Comparing availability date ${availStartDay.toDateString()} with day ${dayDate.toDateString()}`);
+        
+        // Check if the availability starts on this day
+        const isOnThisDay = availStartDay.getTime() === dayDate.getTime();
+        
+        if (isOnThisDay) {
+          console.log(`Found availability for day ${day}:`, {
+            startTime: availStartDate.toLocaleTimeString(),
+            endTime: availEndDate.toLocaleTimeString()
+          });
+        }
+        
+        return isOnThisDay;
       }
     );
 
@@ -1900,28 +1922,28 @@ function ScheduleApp() {
     const shift = getShiftForDay(employeeId, day);
     const availabilities = getAvailabilitiesForDay(employeeId, day);
 
+    // Debug logging for availability display
+    if (availabilities && availabilities.length > 0) {
+      console.log(`Rendering shift cell for employee ${employeeId}, day ${day} with ${availabilities.length} availabilities:`, availabilities);
+    }
+
     return (
       <div className="h-full w-full flex flex-col relative min-h-[4rem]">
         {/* Display availabilities in top right corner */}
         {availabilities && availabilities.length > 0 ? (
           <div className="absolute top-0 right-0 z-10 flex flex-wrap gap-0.5 max-w-[90%]">
             {availabilities.map((availability, index) => {
-              // Format start and end times
-              const startTime = availability.startTime;
-              const endTime = availability.endTime;
+              // Parse timestamps first
+              const startTimeDate = parseTimestamp(availability.startTime);
+              const endTimeDate = parseTimestamp(availability.endTime);
 
               // Skip invalid dates
-              if (
-                !startTime ||
-                !endTime ||
-                isNaN(startTime) ||
-                isNaN(endTime)
-              ) {
+              if (!startTimeDate || !endTimeDate) {
                 console.error("Invalid date in availability:", availability);
                 return null;
               }
 
-              const timeStr = `${formatTime(startTime)}-${formatTime(endTime)}`;
+              const timeStr = `${formatTime(startTimeDate)}-${formatTime(endTimeDate)}`;
 
               return (
                 <div
