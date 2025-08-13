@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { useNotification } from "../components/NotificationContext";
 import {
   API_ENDPOINTS_CONFIG,
   PLANNING_BASE_URL,
@@ -11,6 +12,7 @@ import autoTable from "jspdf-autotable";
 
 const AdminPaycheckGenerator = () => {
   const { authenticatedFetch } = useAuth();
+  const { showSuccess, showError, showWarning } = useNotification();
   const [businessUnits, setBusinessUnits] = useState([]);
   const [selectedBusinessUnit, setSelectedBusinessUnit] = useState("");
   const [paychecks, setPaychecks] = useState([]);
@@ -28,10 +30,10 @@ const AdminPaycheckGenerator = () => {
         const data = await response.json();
         setBusinessUnits(data);
       } else {
-        setError("Failed to fetch business units.");
+        showError("Failed to fetch business units.");
       }
     } catch (err) {
-      setError("An error occurred while fetching business units.");
+      showError("An error occurred while fetching business units.");
       console.error(err);
     }
   };
@@ -43,7 +45,7 @@ const AdminPaycheckGenerator = () => {
 
   const handleGeneratePaychecks = async () => {
     if (!selectedBusinessUnit) {
-      alert("Please select a business unit.");
+      showWarning("Please select a business unit.");
       return;
     }
 
@@ -68,11 +70,14 @@ const AdminPaycheckGenerator = () => {
           };
         });
         setPaychecks(calculatedPaychecks);
+        showSuccess(
+          `Generated ${calculatedPaychecks.length} paychecks successfully!`
+        );
       } else {
-        setError("Failed to fetch employees for the selected business unit.");
+        showError("Failed to fetch employees for the selected business unit.");
       }
     } catch (err) {
-      setError("An error occurred while generating paychecks.");
+      showError("An error occurred while generating paychecks.");
       console.error(err);
     } finally {
       setLoading(false);
@@ -117,6 +122,8 @@ const AdminPaycheckGenerator = () => {
         new Date().toISOString().split("T")[0]
       }.pdf`
     );
+
+    showSuccess("Paycheck PDF exported successfully!");
   };
 
   return (

@@ -214,7 +214,7 @@ function getWeekIdentifier(date) {
 function ScheduleApp() {
   // Extract auth context
   const { authenticatedFetch, user, getRestaurantId } = useAuth();
-  
+
   // Extract notification context
   const { showSuccess, showError, showWarning, showInfo } = useNotification();
 
@@ -324,13 +324,16 @@ function ScheduleApp() {
 
         // Log employee fields for debugging
         if (index === 0) {
-          console.log("📋 [WEEKLY SCHEDULE] Sample employee fields:", Object.keys(emp));
+          console.log(
+            "📋 [WEEKLY SCHEDULE] Sample employee fields:",
+            Object.keys(emp)
+          );
           console.log("📋 [WEEKLY SCHEDULE] Sample employee data:", {
             id: emp.id,
             name: emp.firstName + " " + emp.lastName,
             contractHours: emp.contractHours,
             hourlyPayment: emp.hourlyPayment,
-            role: emp.role
+            role: emp.role,
           });
         }
 
@@ -1276,7 +1279,11 @@ function ScheduleApp() {
       });
 
       // Calculate overtime (hours over contract hours)
-      if (contractHours !== null && hourlyRate !== null && empHours > contractHours) {
+      if (
+        contractHours !== null &&
+        hourlyRate !== null &&
+        empHours > contractHours
+      ) {
         const overtimeHours = empHours - contractHours;
         totalOvertimeHours += overtimeHours;
         // Overtime cost is 1x regular rate
@@ -1319,7 +1326,8 @@ function ScheduleApp() {
     }`.trim();
 
     const estimatedWages = `$${totalWages.toFixed(2)}`;
-    const overtimeCost = totalOvertimeCost > 0 ? `$${totalOvertimeCost.toFixed(2)}` : "$0.00";
+    const overtimeCost =
+      totalOvertimeCost > 0 ? `$${totalOvertimeCost.toFixed(2)}` : "$0.00";
 
     // Calculate labor percentage (assuming $1000 weekly budget as baseline)
     const weeklyBudget = 1000;
@@ -2579,9 +2587,7 @@ function ScheduleApp() {
                   <span>ID: {getRestaurantId()}</span>
                 </div>
               </div>
-              <div className="text-slate-400">
-                Schedule Management System
-              </div>
+              <div className="text-slate-400">Schedule Management System</div>
             </div>
           </div>
         )}
@@ -2666,10 +2672,14 @@ function ScheduleApp() {
         <div className="max-w-7xl mx-auto px-6">
           {/* Stats Title */}
           <div className="mb-3">
-            <h3 className="text-lg font-semibold text-slate-800 mb-1">Weekly Overview</h3>
-            <p className="text-sm text-slate-600">Schedule metrics and cost analysis</p>
+            <h3 className="text-lg font-semibold text-slate-800 mb-1">
+              Weekly Overview
+            </h3>
+            <p className="text-sm text-slate-600">
+              Schedule metrics and cost analysis
+            </p>
           </div>
-          
+
           {/* Single Row Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {/* Estimated Wages */}
@@ -2765,20 +2775,24 @@ function ScheduleApp() {
         {/* Schedule Section Header */}
         <div className="bg-white border-b border-slate-300 px-6 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-slate-800">Weekly Schedule</h3>
+            <h3 className="text-lg font-semibold text-slate-800">
+              Weekly Schedule
+            </h3>
             <div className="text-sm text-slate-500">
               Drag shifts to reschedule • Click to edit details
             </div>
           </div>
         </div>
-        
+
         <div className="w-full">
           {/* Enhanced Day Headers */}
           <div className="grid grid-cols-8 border-b-2 border-slate-300 bg-gradient-to-r from-slate-100 to-slate-200 shadow-md">
             {/* Ultra Compact Employee Column Header */}
             <div className="p-1 md:p-2 font-semibold text-slate-700 border-r border-slate-300 w-16 md:w-24 lg:w-32 min-w-[4rem] md:min-w-[6rem] lg:min-w-[8rem] bg-slate-200">
               <div className="flex flex-col">
-                <div className="text-xs font-bold text-slate-800 truncate">TEAM</div>
+                <div className="text-xs font-bold text-slate-800 truncate">
+                  TEAM
+                </div>
                 <div className="text-[10px] text-slate-500 font-normal truncate hidden md:block">
                   Hours & Rate
                 </div>
@@ -2928,36 +2942,51 @@ function ScheduleApp() {
                           <div className="hidden md:block text-[10px] space-y-0.5">
                             {/* Contract Hours */}
                             <div className="flex justify-between items-center">
-                              <span className="text-slate-500 truncate">Contract:</span>
+                              <span className="text-slate-500 truncate">
+                                Contract:
+                              </span>
                               <span className="font-medium text-slate-700 ml-1">
-                                {employee.contractHours ? `${employee.contractHours}h` : "N/A"}
+                                {employee.contractHours
+                                  ? `${employee.contractHours}h`
+                                  : "N/A"}
                               </span>
                             </div>
-                            
+
                             {/* Hourly Rate */}
                             <div className="flex justify-between items-center">
-                              <span className="text-slate-500 truncate">Rate:</span>
+                              <span className="text-slate-500 truncate">
+                                Rate:
+                              </span>
                               <span className="font-medium text-emerald-600 ml-1">
-                                {employee.hourlyPayment ? `$${employee.hourlyPayment.toFixed(2)}` : "N/A"}
+                                {employee.hourlyPayment
+                                  ? `$${employee.hourlyPayment.toFixed(2)}`
+                                  : "N/A"}
                               </span>
                             </div>
-                            
+
                             {/* Break Duration */}
                             <div className="flex justify-between items-center">
-                              <span className="text-slate-500 truncate">Break:</span>
+                              <span className="text-slate-500 truncate">
+                                Break:
+                              </span>
                               <span className="font-medium text-slate-600 ml-1">
-                                {employee.breakDurationMinutes ? `${employee.breakDurationMinutes}min` : "N/A"}
+                                {employee.breakDurationMinutes
+                                  ? `${employee.breakDurationMinutes}min`
+                                  : "N/A"}
                               </span>
                             </div>
-                            
+
                             {/* Scheduled Hours - Only show if we have contract hours */}
                             {employee.contractHours && (
                               <div className="flex justify-between items-center">
-                                <span className="text-slate-500 truncate">Sched:</span>
+                                <span className="text-slate-500 truncate">
+                                  Sched:
+                                </span>
                                 {(() => {
-                                  const scheduledHours = calculateScheduledHours(employee.id);
+                                  const scheduledHours =
+                                    calculateScheduledHours(employee.id);
                                   const contractHours = employee.contractHours;
-                                  
+
                                   let colorClass = "text-slate-600";
                                   if (scheduledHours < contractHours) {
                                     colorClass = "text-red-600";
@@ -2966,7 +2995,9 @@ function ScheduleApp() {
                                   }
 
                                   return (
-                                    <span className={`font-semibold ml-1 ${colorClass}`}>
+                                    <span
+                                      className={`font-semibold ml-1 ${colorClass}`}
+                                    >
                                       {scheduledHours}h
                                     </span>
                                   );
@@ -2977,9 +3008,17 @@ function ScheduleApp() {
 
                           {/* Mobile-only minimal info */}
                           <div className="md:hidden text-[9px] text-slate-500">
-                            {employee.contractHours ? `${employee.contractHours}h` : "N/A"} • 
-                            {employee.hourlyPayment ? `$${employee.hourlyPayment.toFixed(2)}` : "N/A"} • 
-                            {employee.breakDurationMinutes ? `${employee.breakDurationMinutes}min` : "N/A"}
+                            {employee.contractHours
+                              ? `${employee.contractHours}h`
+                              : "N/A"}{" "}
+                            •
+                            {employee.hourlyPayment
+                              ? `$${employee.hourlyPayment.toFixed(2)}`
+                              : "N/A"}{" "}
+                            •
+                            {employee.breakDurationMinutes
+                              ? `${employee.breakDurationMinutes}min`
+                              : "N/A"}
                           </div>
                         </div>
                       </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { useNotification } from "../components/NotificationContext";
 import { USER_BASE_URL } from "../config/api";
 import {
   Users,
@@ -25,10 +26,9 @@ import {
 
 const TeamManagementPage = () => {
   const { user, authenticatedFetch, getRestaurantId } = useAuth();
+  const { showSuccess, showError } = useNotification();
   const [teamMembers, setTeamMembers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
@@ -52,7 +52,6 @@ const TeamManagementPage = () => {
     console.log("Fetching team members for business unit:", businessUnitId);
 
     setIsLoading(true);
-    setError(null);
 
     try {
       const response = await authenticatedFetch(
@@ -61,7 +60,7 @@ const TeamManagementPage = () => {
       );
 
       if (response.status === 401) {
-        setError("Session expired. Please log in again.");
+        showError("Session expired. Please log in again.");
         return;
       }
 
@@ -117,7 +116,7 @@ const TeamManagementPage = () => {
       setTeamMembers(sortedMembers);
     } catch (error) {
       console.error("Error fetching team members:", error);
-      setError(`Failed to load team members: ${error.message}`);
+      showError(`Failed to load team members: ${error.message}`);
       setTeamMembers([]);
     } finally {
       setIsLoading(false);
@@ -160,7 +159,7 @@ const TeamManagementPage = () => {
       setSearchResults(users);
     } catch (error) {
       console.error("Error searching users:", error);
-      setError(`Failed to search users: ${error.message}`);
+      showError(`Failed to search users: ${error.message}`);
       setSearchResults([]);
     } finally {
       setIsSearching(false);
@@ -171,7 +170,7 @@ const TeamManagementPage = () => {
     e.preventDefault();
 
     if (!selectedUserToAdd) {
-      setError("Please select a user to add");
+      showError("Please select a user to add");
       return;
     }
 
@@ -194,7 +193,7 @@ const TeamManagementPage = () => {
         throw new Error(errorData || `HTTP error! status: ${response.status}`);
       }
 
-      setSuccessMessage(
+      showSuccess(
         `Successfully added ${selectedUserToAdd.firstName} ${selectedUserToAdd.lastName} to the team!`
       );
       setShowAddModal(false);
@@ -207,7 +206,7 @@ const TeamManagementPage = () => {
       fetchTeamMembers();
     } catch (error) {
       console.error("Error adding user:", error);
-      setError(`Failed to add user: ${error.message}`);
+      showError(`Failed to add user: ${error.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -217,7 +216,6 @@ const TeamManagementPage = () => {
     if (!selectedMember) return;
 
     setIsSubmitting(true);
-    setError(null);
 
     try {
       const response = await authenticatedFetch(
@@ -226,7 +224,7 @@ const TeamManagementPage = () => {
       );
 
       if (response.status === 401) {
-        setError("Session expired. Please log in again.");
+        showError("Session expired. Please log in again.");
         return;
       }
 
@@ -237,7 +235,7 @@ const TeamManagementPage = () => {
         );
       }
 
-      setSuccessMessage(
+      showSuccess(
         `Successfully removed ${selectedMember.fullName} from the team!`
       );
       setShowRemoveModal(false);
@@ -247,7 +245,7 @@ const TeamManagementPage = () => {
       fetchTeamMembers();
     } catch (error) {
       console.error("Error removing user:", error);
-      setError(`Failed to remove user: ${error.message}`);
+      showError(`Failed to remove user: ${error.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -260,49 +258,33 @@ const TeamManagementPage = () => {
     }
   }, [user, authenticatedFetch]); // Add authenticatedFetch
 
-  // Clear messages after 5 seconds
-  useEffect(() => {
-    if (successMessage) {
-      const timer = setTimeout(() => setSuccessMessage(null), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [successMessage]);
-
-  useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => setError(null), 8000);
-      return () => clearTimeout(timer);
-    }
-  }, [error]);
-
   const handleUpdateCompensation = async (e) => {
     e.preventDefault();
 
     if (!editingMember) return;
 
     // Validation
-    const weeklyHours = editedContractHours === "" ? null : parseFloat(editedContractHours);
-    const hourlyRate = editedHourlyRate === "" ? null : parseFloat(editedHourlyRate);
-    const breakDuration = editedBreakDuration === "" ? null : parseInt(editedBreakDuration);
-    
-    if (weeklyHours !== null && (weeklyHours < 0 || weeklyHours > 168)) {
-      setError("Weekly hours must be between 0 and 168");
+    const weeklyHours = parseFloat(editedContractHours);
+    const hourlyRate = parseFloat(editedHourlyRate);
+    const breakDuration =
+      editedBreakDuration === "" ? null : parseInt(editedBreakDuration);
+
+    if (weeklyHours < 0 || weeklyHours > 168) {
+      showError("Weekly hours must be between 0 and 168");
       return;
     }
-    
-    if (hourlyRate !== null && hourlyRate < 0) {
-      setError("Hourly rate must be positive");
+
+    if (hourlyRate <= 0) {
+      showError("Hourly rate must be positive");
       return;
     }
 
     if (breakDuration !== null && (breakDuration < 0 || breakDuration > 480)) {
-      setError("Break duration must be between 0 and 480 minutes (8 hours)");
+      showError("Break duration must be between 0 and 480 minutes (8 hours)");
       return;
     }
 
     setIsSubmitting(true);
-    setError(null);
-
     try {
       // Update compensation via specialized payment-and-hours endpoint
       const response = await authenticatedFetch(
@@ -323,7 +305,7 @@ const TeamManagementPage = () => {
         throw new Error(errorData || `HTTP error! status: ${response.status}`);
       }
 
-      setSuccessMessage(
+      showSuccess(
         `Successfully updated compensation for ${editingMember.fullName}!`
       );
       setShowEditModal(false);
@@ -336,12 +318,11 @@ const TeamManagementPage = () => {
       fetchTeamMembers();
     } catch (error) {
       console.error("Error updating compensation:", error);
-      setError(`Failed to update compensation: ${error.message}`);
+      showError(`Failed to update compensation: ${error.message}`);
     } finally {
       setIsSubmitting(false);
     }
   };
-
 
   const getInitials = (name) => {
     return (
@@ -405,25 +386,6 @@ const TeamManagementPage = () => {
           />
         </div>
       </div>
-
-      {/* Messages */}
-      {successMessage && (
-        <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
-          <div className="flex items-center">
-            <CheckCircle size={20} className="text-green-500 mr-2" />
-            <p className="text-green-800">{successMessage}</p>
-          </div>
-        </div>
-      )}
-
-      {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-center">
-            <AlertCircle size={20} className="text-red-500 mr-2" />
-            <p className="text-red-800">{error}</p>
-          </div>
-        </div>
-      )}
 
       {/* Team Members Grid */}
       {isLoading ? (
@@ -517,7 +479,9 @@ const TeamManagementPage = () => {
                           setEditingMember(member);
                           setEditedContractHours(member.contractHours || "");
                           setEditedHourlyRate(member.hourlyRate || "");
-                          setEditedBreakDuration(member.breakDurationMinutes || "");
+                          setEditedBreakDuration(
+                            member.breakDurationMinutes || ""
+                          );
                           setShowEditModal(true);
                         }}
                         className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
@@ -543,7 +507,8 @@ const TeamManagementPage = () => {
               {/* Compensation Section - Prominent Display */}
               {(member.contractHours != null && member.contractHours !== "") ||
               (member.hourlyRate != null && member.hourlyRate !== "") ||
-              (member.breakDurationMinutes != null && member.breakDurationMinutes !== "") ? (
+              (member.breakDurationMinutes != null &&
+                member.breakDurationMinutes !== "") ? (
                 <div className="bg-gradient-to-r from-blue-50 to-green-50 px-6 py-4 border-t border-gray-100">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-sm font-semibold text-gray-700 flex items-center">
@@ -557,22 +522,29 @@ const TeamManagementPage = () => {
                         <div className="flex items-center space-x-1 bg-green-100 px-2 py-1 rounded-full">
                           <TrendingUp size={12} className="text-green-600" />
                           <span className="text-sm font-bold text-green-800">
-                            ${(
+                            $
+                            {(
                               parseFloat(member.contractHours) *
                               parseFloat(member.hourlyRate)
-                            ).toFixed(2)}/wk
+                            ).toFixed(2)}
+                            /wk
                           </span>
                         </div>
                       )}
                   </div>
-                  
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {member.contractHours != null &&
                       member.contractHours !== "" && (
                         <div className="flex items-center space-x-2">
-                          <Clock size={14} className="text-blue-500 flex-shrink-0" />
+                          <Clock
+                            size={14}
+                            className="text-blue-500 flex-shrink-0"
+                          />
                           <div>
-                            <p className="text-xs text-gray-500">Weekly Hours</p>
+                            <p className="text-xs text-gray-500">
+                              Weekly Hours
+                            </p>
                             <p className="text-sm font-semibold text-gray-900">
                               {member.contractHours}h
                             </p>
@@ -582,7 +554,10 @@ const TeamManagementPage = () => {
 
                     {member.hourlyRate != null && member.hourlyRate !== "" && (
                       <div className="flex items-center space-x-2">
-                        <DollarSign size={14} className="text-green-500 flex-shrink-0" />
+                        <DollarSign
+                          size={14}
+                          className="text-green-500 flex-shrink-0"
+                        />
                         <div>
                           <p className="text-xs text-gray-500">Hourly Rate</p>
                           <p className="text-sm font-semibold text-gray-900">
@@ -592,17 +567,23 @@ const TeamManagementPage = () => {
                       </div>
                     )}
 
-                    {member.breakDurationMinutes != null && member.breakDurationMinutes !== "" && (
-                      <div className="flex items-center space-x-2">
-                        <Coffee size={14} className="text-orange-500 flex-shrink-0" />
-                        <div>
-                          <p className="text-xs text-gray-500">Break Duration</p>
-                          <p className="text-sm font-semibold text-gray-900">
-                            {member.breakDurationMinutes}min
-                          </p>
+                    {member.breakDurationMinutes != null &&
+                      member.breakDurationMinutes !== "" && (
+                        <div className="flex items-center space-x-2">
+                          <Coffee
+                            size={14}
+                            className="text-orange-500 flex-shrink-0"
+                          />
+                          <div>
+                            <p className="text-xs text-gray-500">
+                              Break Duration
+                            </p>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {member.breakDurationMinutes}min
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
                   </div>
                 </div>
               ) : (
@@ -633,10 +614,12 @@ const TeamManagementPage = () => {
                     </span>
                   </div>
                 )}
-                
+
                 {!member.email && !member.phoneNumber && (
                   <div className="text-center py-2">
-                    <span className="text-xs text-gray-400">No contact info</span>
+                    <span className="text-xs text-gray-400">
+                      No contact info
+                    </span>
                   </div>
                 )}
               </div>
@@ -832,7 +815,7 @@ const TeamManagementPage = () => {
                 <h4 className="text-sm font-medium text-gray-900 border-b border-gray-200 pb-2">
                   Compensation Details
                 </h4>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -848,9 +831,11 @@ const TeamManagementPage = () => {
                       onChange={(e) => setEditedContractHours(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
-                    <p className="text-xs text-gray-500 mt-1">Expected hours per week</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Expected hours per week
+                    </p>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Hourly Pay Rate
@@ -869,10 +854,12 @@ const TeamManagementPage = () => {
                         className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">Pay rate per hour worked</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Pay rate per hour worked
+                    </p>
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-1 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -888,14 +875,20 @@ const TeamManagementPage = () => {
                       onChange={(e) => setEditedBreakDuration(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
-                    <p className="text-xs text-gray-500 mt-1">Daily break duration in minutes</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Daily break duration in minutes
+                    </p>
                   </div>
                 </div>
-                
+
                 {editedContractHours && editedHourlyRate && (
                   <div className="mt-3 p-3 bg-blue-50 rounded-md">
                     <span className="text-sm text-blue-800">
-                      Estimated weekly earnings: ${(parseFloat(editedContractHours) * parseFloat(editedHourlyRate)).toFixed(2)}
+                      Estimated weekly earnings: $
+                      {(
+                        parseFloat(editedContractHours) *
+                        parseFloat(editedHourlyRate)
+                      ).toFixed(2)}
                     </span>
                   </div>
                 )}

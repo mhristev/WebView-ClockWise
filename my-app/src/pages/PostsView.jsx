@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { useNotification } from "../components/NotificationContext";
 import { API_ENDPOINTS_CONFIG } from "../config/api";
 import {
   MessageSquare,
@@ -20,12 +21,12 @@ import {
 
 const PostsView = () => {
   const { user, authenticatedFetch, getRestaurantId } = useAuth();
+  const { showSuccess, showError } = useNotification();
 
   // State management
   const [posts, setPosts] = useState([]);
   const [businessUnit, setBusinessUnit] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   // Post detail modal state
   const [selectedPost, setSelectedPost] = useState(null);
@@ -61,7 +62,7 @@ const PostsView = () => {
   // Access control check
   useEffect(() => {
     if (user && user.role !== "MANAGER" && user.role !== "ADMIN") {
-      setError(
+      showError(
         "Access denied. This page is only accessible to managers and administrators."
       );
     }
@@ -104,7 +105,7 @@ const PostsView = () => {
       }
     } catch (error) {
       console.error("Error fetching initial data:", error);
-      setError("Failed to load data. Please try again.");
+      showError("Failed to load data. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -139,7 +140,7 @@ const PostsView = () => {
     e.preventDefault();
 
     if (!createPostData.title.trim() || !createPostData.body.trim()) {
-      setError("Please fill in all required fields");
+      showError("Please fill in all required fields");
       return;
     }
 
@@ -167,12 +168,13 @@ const PostsView = () => {
           body: "",
           targetAudience: "ALL_EMPLOYEES",
         });
+        showSuccess("Post created successfully!");
       } else {
         throw new Error("Failed to create post");
       }
     } catch (error) {
       console.error("Error creating post:", error);
-      setError("Failed to create post. Please try again.");
+      showError("Failed to create post. Please try again.");
     } finally {
       setCreateLoading(false);
     }
@@ -386,19 +388,6 @@ const PostsView = () => {
             </div>
           )}
         </div>
-
-        {/* Error State */}
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
-            <div className="flex">
-              <AlertCircle className="h-5 w-5 text-red-400" />
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">Error</h3>
-                <div className="mt-2 text-sm text-red-700">{error}</div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Main Posts List */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">

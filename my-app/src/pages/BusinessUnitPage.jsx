@@ -111,8 +111,8 @@ const BusinessUnitPage = () => {
       }
     }
 
-    if (name === "description" && value && value.length > 500) {
-      errors.description = "Description must be less than 500 characters";
+    if (name === "description" && value && value.length > 5000) {
+      errors.description = "Description must be less than 5000 characters";
     }
 
     return errors;
@@ -257,18 +257,30 @@ const BusinessUnitPage = () => {
         {businessUnit && (
           <>
             <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-8">
-              <div className="px-4 py-5 sm:px-6 flex items-center">
-                <div className="bg-blue-100 rounded-full p-2 mr-3">
-                  <Building2 size={28} className="text-blue-600" />
+              <div className="px-4 py-5 sm:px-6 flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="bg-blue-100 rounded-full p-2 mr-3">
+                    <Building2 size={28} className="text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg leading-6 font-medium text-gray-900">
+                      {businessUnit.name}
+                    </h3>
+                    <p className="mt-1 max-w-2xl text-sm text-gray-500">
+                      ID: {businessUnit.id}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">
-                    {businessUnit.name}
-                  </h3>
-                  <p className="mt-1 max-w-2xl text-sm text-gray-500">
-                    ID: {businessUnit.id}
-                  </p>
-                </div>
+                {user?.role === "MANAGER" && !isEditing && (
+                  <button
+                    onClick={handleEditToggle}
+                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 border border-transparent rounded-md shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    title="Edit business unit information"
+                  >
+                    <Edit3 size={16} className="mr-2" />
+                    Edit
+                  </button>
+                )}
               </div>
 
               <div className="border-t border-gray-200">
@@ -300,10 +312,11 @@ const BusinessUnitPage = () => {
                             }
                             className={`${getInputClassName(
                               "description"
-                            )} resize-vertical min-h-20`}
-                            placeholder="Enter business unit description..."
-                            rows={3}
+                            )} resize-vertical min-h-20 whitespace-pre-wrap`}
+                            placeholder="Enter business unit description...&#10;&#10;You can use line breaks and formatting here."
+                            rows={5}
                             disabled={isSaving}
+                            style={{ whiteSpace: 'pre-wrap' }}
                           />
                           {validationErrors.description && (
                             <p className="text-sm text-red-600 flex items-center">
@@ -312,14 +325,14 @@ const BusinessUnitPage = () => {
                             </p>
                           )}
                           <p className="text-xs text-gray-500">
-                            {editData.description.length}/500 characters
+                            {editData.description.length}/5000 characters
                           </p>
                         </div>
                       ) : (
-                        <span>
+                        <div className="whitespace-pre-wrap">
                           {businessUnit.description ||
                             "No description provided"}
-                        </span>
+                        </div>
                       )}
                     </dd>
                   </div>
@@ -327,56 +340,8 @@ const BusinessUnitPage = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
-              <div className="bg-white shadow rounded-lg overflow-hidden">
-                <div className="p-5 bg-blue-50 border-b border-blue-100">
-                  <h3 className="text-lg font-medium text-blue-800 flex items-center">
-                    <Calendar size={20} className="mr-2" /> Schedule Management
-                  </h3>
-                </div>
-                <div className="p-5">
-                  <p className="text-gray-700 mb-4">
-                    Create and manage weekly schedules for your team. Assign
-                    shifts and view employee availability.
-                  </p>
-                  <a
-                    href="/schedule"
-                    className="inline-flex items-center text-blue-600 hover:text-blue-800"
-                  >
-                    Go to Schedule{" "}
-                    <span aria-hidden="true" className="ml-1">
-                      →
-                    </span>
-                  </a>
-                </div>
-              </div>
-
-              <div className="bg-white shadow rounded-lg overflow-hidden">
-                <div className="p-5 bg-green-50 border-b border-green-100">
-                  <h3 className="text-lg font-medium text-green-800 flex items-center">
-                    <Users size={20} className="mr-2" /> Team Overview
-                  </h3>
-                </div>
-                <div className="p-5">
-                  <p className="text-gray-700 mb-4">
-                    View all team members associated with this business unit.
-                    See roles and contact information.
-                  </p>
-                  <button
-                    onClick={() => navigate("/team-management")}
-                    className="inline-flex items-center text-green-600 hover:text-green-800 transition-colors"
-                  >
-                    Manage Team{" "}
-                    <span aria-hidden="true" className="ml-1">
-                      →
-                    </span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
             <div className="bg-white shadow overflow-hidden sm:rounded-lg relative">
-              <div className="px-4 py-5 sm:px-6 flex justify-between items-start">
+              <div className="px-4 py-5 sm:px-6">
                 <div>
                   <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center">
                     <Briefcase size={20} className="mr-2" /> Business Contact
@@ -386,16 +351,6 @@ const BusinessUnitPage = () => {
                     Contact details for this business unit
                   </p>
                 </div>
-                {user?.role === "MANAGER" && !isEditing && (
-                  <button
-                    onClick={handleEditToggle}
-                    className="inline-flex items-center px-2 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-                    title="Edit contact information"
-                  >
-                    <Edit3 size={16} className="mr-1" />
-                    Edit
-                  </button>
-                )}
               </div>
 
               <div className="border-t border-gray-200">
@@ -507,6 +462,55 @@ const BusinessUnitPage = () => {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Management Cards moved to bottom */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-8">
+              <div className="bg-white shadow rounded-lg overflow-hidden">
+                <div className="p-5 bg-blue-50 border-b border-blue-100">
+                  <h3 className="text-lg font-medium text-blue-800 flex items-center">
+                    <Calendar size={20} className="mr-2" /> Schedule Management
+                  </h3>
+                </div>
+                <div className="p-5">
+                  <p className="text-gray-700 mb-4">
+                    Create and manage weekly schedules for your team. Assign
+                    shifts and view employee availability.
+                  </p>
+                  <a
+                    href="/schedule"
+                    className="inline-flex items-center text-blue-600 hover:text-blue-800"
+                  >
+                    Go to Schedule{" "}
+                    <span aria-hidden="true" className="ml-1">
+                      →
+                    </span>
+                  </a>
+                </div>
+              </div>
+
+              <div className="bg-white shadow rounded-lg overflow-hidden">
+                <div className="p-5 bg-green-50 border-b border-green-100">
+                  <h3 className="text-lg font-medium text-green-800 flex items-center">
+                    <Users size={20} className="mr-2" /> Team Overview
+                  </h3>
+                </div>
+                <div className="p-5">
+                  <p className="text-gray-700 mb-4">
+                    View all team members associated with this business unit.
+                    See roles and contact information.
+                  </p>
+                  <button
+                    onClick={() => navigate("/team-management")}
+                    className="inline-flex items-center text-green-600 hover:text-green-800 transition-colors"
+                  >
+                    Manage Team{" "}
+                    <span aria-hidden="true" className="ml-1">
+                      →
+                    </span>
+                  </button>
+                </div>
+              </div>
             </div>
           </>
         )}

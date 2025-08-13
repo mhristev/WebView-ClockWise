@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { useNotification } from "../components/NotificationContext";
 import {
   API_ENDPOINTS_CONFIG,
   ORGANIZATION_BASE_URL,
@@ -14,6 +15,7 @@ import { Building2, Filter } from "lucide-react";
 
 const AdminBusinessUnitSchedulePage = () => {
   const { user, authenticatedFetch } = useAuth(); // Removed getRestaurantId
+  const { showSuccess, showError, showWarning } = useNotification();
 
   // State for business units
   const [businessUnits, setBusinessUnits] = useState([]);
@@ -642,7 +644,7 @@ const AdminBusinessUnitSchedulePage = () => {
   // Export functions
   const exportToPDF = () => {
     if (!selectedBusinessUnit) {
-      alert("Please select a business unit first.");
+      showWarning("Please select a business unit first.");
       return;
     }
 
@@ -718,11 +720,12 @@ const AdminBusinessUnitSchedulePage = () => {
 
     // Save the PDF
     doc.save(`${businessUnit}_Schedule_${weekRange.replace(/\s+/g, "_")}.pdf`);
+    showSuccess("Schedule PDF exported successfully!");
   };
 
   const exportToExcel = () => {
     if (!selectedBusinessUnit) {
-      alert("Please select a business unit first.");
+      showWarning("Please select a business unit first.");
       return;
     }
 
@@ -785,6 +788,8 @@ const AdminBusinessUnitSchedulePage = () => {
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([wbout], { type: "application/octet-stream" });
     saveAs(blob, fileName);
+
+    showSuccess("Schedule Excel file exported successfully!");
   };
 
   // Effects

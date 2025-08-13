@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { useNotification } from "../components/NotificationContext";
 import { API_ENDPOINTS_CONFIG } from "../config/api";
 import {
   Clock,
@@ -19,10 +20,9 @@ import {
 
 const PendingShiftExchanges = () => {
   const { user, authenticatedFetch, getRestaurantId } = useAuth();
+  const { showSuccess, showError } = useNotification();
   const [exchanges, setExchanges] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -37,7 +37,6 @@ const PendingShiftExchanges = () => {
     );
 
     setIsLoading(true);
-    setError(null);
 
     try {
       const response = await authenticatedFetch(
@@ -46,7 +45,7 @@ const PendingShiftExchanges = () => {
       );
 
       if (response.status === 401) {
-        setError("Session expired. Please log in again.");
+        showError("Session expired. Please log in again.");
         return;
       }
 
@@ -59,7 +58,7 @@ const PendingShiftExchanges = () => {
       setExchanges(data || []);
     } catch (error) {
       console.error("Error fetching pending exchanges:", error);
-      setError(`Failed to load pending shift exchanges: ${error.message}`);
+      showError(`Failed to load pending shift exchanges: ${error.message}`);
       setExchanges([]);
     } finally {
       setIsLoading(false);
@@ -71,21 +70,6 @@ const PendingShiftExchanges = () => {
       fetchPendingExchanges();
     }
   }, [user, authenticatedFetch]);
-
-  // Clear messages after 5 seconds
-  useEffect(() => {
-    if (successMessage) {
-      const timer = setTimeout(() => setSuccessMessage(null), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [successMessage]);
-
-  useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => setError(null), 8000);
-      return () => clearTimeout(timer);
-    }
-  }, [error]);
 
   const handleApproveClick = (exchange) => {
     setSelectedRequest(exchange);
@@ -103,7 +87,6 @@ const PendingShiftExchanges = () => {
     if (!selectedRequest || !actionType) return;
 
     setIsProcessing(true);
-    setError(null);
 
     try {
       const endpoint =
@@ -120,7 +103,7 @@ const PendingShiftExchanges = () => {
       });
 
       if (response.status === 401) {
-        setError("Session expired. Please log in again.");
+        showError("Session expired. Please log in again.");
         return;
       }
 
@@ -129,7 +112,7 @@ const PendingShiftExchanges = () => {
       }
 
       const actionText = actionType === "approve" ? "approved" : "rejected";
-      setSuccessMessage(
+      showSuccess(
         `Successfully ${actionText} shift exchange request from ${selectedRequest.acceptedRequest.requesterUserFirstName} ${selectedRequest.acceptedRequest.requesterUserLastName}`
       );
 
@@ -141,7 +124,7 @@ const PendingShiftExchanges = () => {
       fetchPendingExchanges();
     } catch (error) {
       console.error(`Error ${actionType}ing request:`, error);
-      setError(`Failed to ${actionType} request: ${error.message}`);
+      showError(`Failed to ${actionType} request: ${error.message}`);
     } finally {
       setIsProcessing(false);
     }
@@ -271,25 +254,6 @@ const PendingShiftExchanges = () => {
           />
         </div>
       </div>
-
-      {/* Messages */}
-      {successMessage && (
-        <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
-          <div className="flex items-center">
-            <CheckCircle size={20} className="text-green-500 mr-2" />
-            <p className="text-green-800">{successMessage}</p>
-          </div>
-        </div>
-      )}
-
-      {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-center">
-            <AlertCircle size={20} className="text-red-500 mr-2" />
-            <p className="text-red-800">{error}</p>
-          </div>
-        </div>
-      )}
 
       {/* Exchange Requests */}
       {isLoading ? (

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { useNotification } from "../components/NotificationContext";
 import { USER_BASE_URL } from "../config/api";
 import {
   UserCircle,
@@ -16,8 +17,8 @@ import {
 
 const ProfilePage = () => {
   const { authenticatedFetch, user } = useAuth();
+  const { showError } = useNotification();
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
@@ -30,7 +31,7 @@ const ProfilePage = () => {
         const data = await response.json();
         setCurrentUser(data);
       } catch (err) {
-        setError(err);
+        showError("Failed to load user profile. Please try again.");
         console.error("Error fetching user profile:", err);
       } finally {
         setIsLoading(false);
@@ -69,14 +70,6 @@ const ProfilePage = () => {
     return (
       <div className="p-8 text-center">
         <p>Loading user information...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-8 text-center text-red-500">
-        <p>Error: {error.message}</p>
       </div>
     );
   }
