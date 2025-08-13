@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import "./index.css";
 import { useAuth } from "./auth/AuthContext";
+import { useNotification } from "./components/NotificationContext";
 import { API_ENDPOINTS_CONFIG, USER_BASE_URL } from "./config/api";
 
 // Import jsPDF and autoTable
@@ -185,6 +186,12 @@ const createShiftRequest = (
   };
 };
 
+// Helper function to check if a date is today
+function isDateToday(date) {
+  const today = new Date();
+  return date.toDateString() === today.toDateString();
+}
+
 // Helper function to get Monday of a given week (moved outside component)
 function getMonday(date) {
   const day = date.getDay();
@@ -207,6 +214,9 @@ function getWeekIdentifier(date) {
 function ScheduleApp() {
   // Extract auth context
   const { authenticatedFetch, user, getRestaurantId } = useAuth();
+  
+  // Extract notification context
+  const { showSuccess, showError, showWarning, showInfo } = useNotification();
 
   // State declarations
   const [employees, setEmployees] = useState([]);
@@ -234,10 +244,14 @@ function ScheduleApp() {
 
   // Constants
   const positions = ["Waiter", "Bartender", "Cleaner"];
+  // Enhanced position colors with gradients
   const positionColors = {
-    Waiter: "bg-blue-100 border-blue-300",
-    Bartender: "bg-purple-100 border-purple-300",
-    Cleaner: "bg-green-100 border-green-300",
+    Waiter:
+      "bg-gradient-to-br from-blue-100 to-blue-200 border-blue-300 text-blue-800 hover:from-blue-200 hover:to-blue-300",
+    Bartender:
+      "bg-gradient-to-br from-purple-100 to-purple-200 border-purple-300 text-purple-800 hover:from-purple-200 hover:to-purple-300",
+    Cleaner:
+      "bg-gradient-to-br from-emerald-100 to-emerald-200 border-emerald-300 text-emerald-800 hover:from-emerald-200 hover:to-emerald-300",
   };
   const daysOfWeek = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
@@ -308,6 +322,18 @@ function ScheduleApp() {
         // Check if this employee is the current user
         const isCurrentUser = user && emp.id === user.id;
 
+        // Log employee fields for debugging
+        if (index === 0) {
+          console.log("📋 [WEEKLY SCHEDULE] Sample employee fields:", Object.keys(emp));
+          console.log("📋 [WEEKLY SCHEDULE] Sample employee data:", {
+            id: emp.id,
+            name: emp.firstName + " " + emp.lastName,
+            contractHours: emp.contractHours,
+            hourlyPayment: emp.hourlyPayment,
+            role: emp.role
+          });
+        }
+
         console.log(`👤 [WEEKLY SCHEDULE] Processing employee ${index + 1}:`, {
           id: emp.id,
           name: `${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
@@ -325,6 +351,9 @@ function ScheduleApp() {
           role: emp.role || "Staff",
           hours: emp.workingHours || "40h/week",
           businessUnitName: emp.businessUnitName || "Restaurant",
+          contractHours: emp.contractHours || null, // Keep as null if not provided
+          hourlyPayment: emp.hourlyPayment || null, // Keep as null if not provided
+          breakDurationMinutes: emp.breakDurationMinutes || null, // Keep as null if not provided
           isCurrentUser: isCurrentUser,
           isGhost: false, // Initially fetched employees are current, not ghost
         };
@@ -415,7 +444,10 @@ function ScheduleApp() {
         });
       });
 
-      console.log('Processed availabilities by employee:', availabilitiesByEmployee);
+      console.log(
+        "Processed availabilities by employee:",
+        availabilitiesByEmployee
+      );
       setEmployeeAvailabilities(availabilitiesByEmployee);
     } catch (error) {
       console.error("Error fetching availabilities:", error);
@@ -628,9 +660,11 @@ function ScheduleApp() {
         shiftDate.setDate(shiftDate.getDate() + shift.day);
 
         // Find employee data to get firstName and lastName
-        const employee = employees.find(emp => emp.id === shift.employeeId);
-        const userFirstName = employee?.firstName || employee?.name?.split(' ')[0] || '';
-        const userLastName = employee?.lastName || employee?.name?.split(' ')[1] || '';
+        const employee = employees.find((emp) => emp.id === shift.employeeId);
+        const userFirstName =
+          employee?.firstName || employee?.name?.split(" ")[0] || "";
+        const userLastName =
+          employee?.lastName || employee?.name?.split(" ")[1] || "";
 
         const shiftRequest = createShiftRequest(
           scheduleData.id,
@@ -679,7 +713,7 @@ function ScheduleApp() {
       await fetchScheduleForWeek(currentWeekStart);
 
       // Show success
-      alert("Schedule draft saved successfully!");
+      showSuccess("Schedule draft saved successfully!");
     } catch (error) {
       console.error("Error saving schedule:", error);
       setError("Failed to save schedule draft");
@@ -691,7 +725,7 @@ function ScheduleApp() {
   // Add a function to edit a published schedule
   const editPublishedSchedule = async () => {
     if (!currentScheduleId) {
-      alert("No schedule selected.");
+      showWarning("No schedule selected.");
       return;
     }
 
@@ -719,7 +753,7 @@ function ScheduleApp() {
       const updatedSchedule = await response.json();
       console.log("Successfully reverted schedule to draft:", updatedSchedule);
 
-      alert("Schedule can now be edited!");
+      showSuccess("Schedule can now be edited!");
 
       // Set schedule as not published (editable)
       setIsSchedulePublished(false);
@@ -728,7 +762,7 @@ function ScheduleApp() {
       fetchScheduleForWeek(currentWeekStart);
     } catch (err) {
       console.error("Failed to revert schedule to draft:", err);
-      alert(`Failed to revert schedule to draft: ${err.message}`);
+      showError(`Failed to revert schedule to draft: ${err.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -737,7 +771,7 @@ function ScheduleApp() {
   // Modify publishSchedule to set the published state
   const publishSchedule = async () => {
     if (!currentScheduleId) {
-      alert("No schedule to publish. Please create a schedule first.");
+      showWarning("No schedule to publish. Please create a schedule first.");
       return;
     }
 
@@ -764,13 +798,13 @@ function ScheduleApp() {
       // Set schedule as published
       setIsSchedulePublished(true);
 
-      alert("Schedule published successfully!");
+      showSuccess("Schedule published successfully!");
 
       // Refresh the schedule data
       fetchScheduleForWeek(currentWeekStart);
     } catch (err) {
       console.error("Failed to publish schedule:", err);
-      alert(`Failed to publish schedule: ${err.message}`);
+      showError(`Failed to publish schedule: ${err.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -921,7 +955,7 @@ function ScheduleApp() {
   const openShiftModal = (employeeId, day, existingShift = null) => {
     // Don't allow editing shifts if the schedule is published
     if (isSchedulePublished) {
-      alert(
+      showWarning(
         "This schedule is published and cannot be edited. Please use the 'Edit Schedule' button to make changes."
       );
       return;
@@ -1046,9 +1080,11 @@ function ScheduleApp() {
       shiftDate.setDate(shiftDate.getDate() + day);
 
       // Find employee data to get firstName and lastName
-      const employee = employees.find(emp => emp.id === employeeId);
-      const userFirstName = employee?.firstName || employee?.name?.split(' ')[0] || '';
-      const userLastName = employee?.lastName || employee?.name?.split(' ')[1] || '';
+      const employee = employees.find((emp) => emp.id === employeeId);
+      const userFirstName =
+        employee?.firstName || employee?.name?.split(" ")[0] || "";
+      const userLastName =
+        employee?.lastName || employee?.name?.split(" ")[1] || "";
 
       // Create the shift request using our time-preserving function
       const shiftRequest = createShiftRequest(
@@ -1104,7 +1140,7 @@ function ScheduleApp() {
       }
     } catch (err) {
       console.error("Failed to save shift to backend:", err);
-      alert(`Failed to save shift: ${err.message}`);
+      showError(`Failed to save shift: ${err.message}`);
     }
 
     setIsModalOpen(false);
@@ -1158,7 +1194,7 @@ function ScheduleApp() {
         console.log(`Shift ${shiftToDelete.backendId} deleted from backend`);
       } catch (err) {
         console.error("Failed to delete shift from backend:", err);
-        alert(
+        showError(
           `The shift was removed from the UI but could not be deleted from the backend: ${err.message}`
         );
       }
@@ -1177,7 +1213,7 @@ function ScheduleApp() {
     });
   };
 
-  // Update stats based on current week's schedule
+  // Update stats based on current week's schedule with actual hourly payments
   const updateStats = (currentShifts = null) => {
     if (!employees || employees.length === 0) return;
 
@@ -1185,22 +1221,67 @@ function ScheduleApp() {
     let totalShifts = 0;
     let totalHours = 0;
     let totalWages = 0;
+    let totalOvertimeHours = 0;
+    let totalOvertimeCost = 0;
 
-    // Calculate employee hours
+    // Calculate employee hours and wages
     const employeeHours = {};
 
     Object.entries(shifts).forEach(([empId, employeeShifts]) => {
       totalShifts += employeeShifts.length;
       let empHours = 0;
 
-      employeeShifts.forEach(() => {
-        // Simple calculation - 5.5 hours per shift
-        empHours += 5.5;
-        totalHours += 5.5;
+      // Find the employee to get their hourly rate
+      const employee = employees.find(
+        (emp) => emp.id.toString() === empId.toString()
+      );
+      const hourlyRate = employee?.hourlyPayment || null;
+      const contractHours = employee?.contractHours || null;
 
-        // Estimate wages (assuming $40/hour average rate)
-        totalWages += 5.5 * 40;
+      employeeShifts.forEach((shift) => {
+        let shiftHours = 0;
+
+        // Calculate hours from shift duration
+        if (shift.duration) {
+          const duration = shift.duration;
+          const hoursMatch = duration.match(/(\d+)h/);
+          const minutesMatch = duration.match(/(\d+)min/);
+
+          let hours = hoursMatch ? parseInt(hoursMatch[1]) : 0;
+          let minutes = minutesMatch ? parseInt(minutesMatch[1]) : 0;
+
+          shiftHours = hours + minutes / 60;
+        } else if (shift.startTime && shift.endTime) {
+          // Fallback: calculate from start and end time
+          const start = parseTimestamp(shift.startTime);
+          const end = parseTimestamp(shift.endTime);
+          if (start && end) {
+            const durationMs = end - start;
+            shiftHours = durationMs / (1000 * 60 * 60);
+            shiftHours = shiftHours > 0 ? shiftHours : 0;
+          }
+        } else {
+          // Default fallback
+          shiftHours = 8;
+        }
+
+        empHours += shiftHours;
+        totalHours += shiftHours;
+
+        // Calculate wages for this shift (only if hourly rate is available)
+        if (hourlyRate !== null) {
+          const shiftWages = shiftHours * hourlyRate;
+          totalWages += shiftWages;
+        }
       });
+
+      // Calculate overtime (hours over contract hours)
+      if (contractHours !== null && hourlyRate !== null && empHours > contractHours) {
+        const overtimeHours = empHours - contractHours;
+        totalOvertimeHours += overtimeHours;
+        // Overtime cost is 1x regular rate
+        totalOvertimeCost += overtimeHours * hourlyRate * 1.0;
+      }
 
       employeeHours[empId] = empHours;
     });
@@ -1211,8 +1292,10 @@ function ScheduleApp() {
 
       const hours = employeeHours[emp.id] || 0;
       const formattedHours = `${Math.floor(hours)}h ${
-        (hours % 1) * 60 > 0 ? `${(hours % 1) * 60}min` : ""
-      }`;
+        Math.round((hours % 1) * 60) > 0
+          ? `${Math.round((hours % 1) * 60)}min`
+          : ""
+      }`.trim();
 
       return {
         ...emp,
@@ -1222,21 +1305,37 @@ function ScheduleApp() {
 
     setEmployees(updatedEmployees);
 
+    // Format totals
     const formattedHours = `${Math.floor(totalHours)}h ${
-      totalHours % 1 > 0 ? `${(totalHours % 1) * 60}min` : ""
-    }`;
+      Math.round((totalHours % 1) * 60) > 0
+        ? `${Math.round((totalHours % 1) * 60)}min`
+        : ""
+    }`.trim();
+
+    const formattedOtHours = `${Math.floor(totalOvertimeHours)}h ${
+      Math.round((totalOvertimeHours % 1) * 60) > 0
+        ? `${Math.round((totalOvertimeHours % 1) * 60)}min`
+        : ""
+    }`.trim();
+
     const estimatedWages = `$${totalWages.toFixed(2)}`;
+    const overtimeCost = totalOvertimeCost > 0 ? `$${totalOvertimeCost.toFixed(2)}` : "$0.00";
+
+    // Calculate labor percentage (assuming $1000 weekly budget as baseline)
+    const weeklyBudget = 1000;
     const laborPercent =
-      totalHours > 0 ? `${((totalWages / 750) * 100).toFixed(2)}%` : "0%";
+      totalWages > 0
+        ? `${((totalWages / weeklyBudget) * 100).toFixed(1)}%`
+        : "N/A";
 
     setStats({
       totalShifts,
-      scheduledHours: formattedHours,
+      scheduledHours: formattedHours || "0h",
       estWages: estimatedWages,
-      otCost: "$0.00",
-      otHours: "0h",
+      otCost: overtimeCost,
+      otHours: formattedOtHours || "0h",
       laborPercent,
-      absences: 0,
+      absences: 0, // This would need to be calculated from actual absence data
     });
   };
 
@@ -1897,37 +1996,42 @@ function ScheduleApp() {
     // Reset time to start of day for comparison
     dayDate.setHours(0, 0, 0, 0);
 
-    console.log(`Getting availabilities for employee ${employeeId} on day ${day}`, {
-      dayDate: dayDate.toDateString(),
-      availabilities: employeeAvailabilities[employeeId]
-    });
+    console.log(
+      `Getting availabilities for employee ${employeeId} on day ${day}`,
+      {
+        dayDate: dayDate.toDateString(),
+        availabilities: employeeAvailabilities[employeeId],
+      }
+    );
 
     const availabilities = employeeAvailabilities[employeeId].filter(
       (availability) => {
         const availStartDate = parseTimestamp(availability.startTime);
         const availEndDate = parseTimestamp(availability.endTime);
-        
+
         if (!availStartDate || !availEndDate) {
-          console.warn('Invalid availability dates:', availability);
+          console.warn("Invalid availability dates:", availability);
           return false;
         }
 
         // Check if the availability date matches this specific day
         const availStartDay = new Date(availStartDate);
         availStartDay.setHours(0, 0, 0, 0);
-        
-        console.log(`Comparing availability date ${availStartDay.toDateString()} with day ${dayDate.toDateString()}`);
-        
+
+        console.log(
+          `Comparing availability date ${availStartDay.toDateString()} with day ${dayDate.toDateString()}`
+        );
+
         // Check if the availability starts on this day
         const isOnThisDay = availStartDay.getTime() === dayDate.getTime();
-        
+
         if (isOnThisDay) {
           console.log(`Found availability for day ${day}:`, {
             startTime: availStartDate.toLocaleTimeString(),
-            endTime: availEndDate.toLocaleTimeString()
+            endTime: availEndDate.toLocaleTimeString(),
           });
         }
-        
+
         return isOnThisDay;
       }
     );
@@ -1935,21 +2039,31 @@ function ScheduleApp() {
     return availabilities;
   };
 
-  // Render a shift cell with availabilities
+  // Enhanced shift cell rendering
   const renderShiftCell = (employeeId, day) => {
     const shift = getShiftForDay(employeeId, day);
     const availabilities = getAvailabilitiesForDay(employeeId, day);
+    const isToday = isDateToday(
+      new Date(currentWeekStart.getTime() + day * 24 * 60 * 60 * 1000)
+    );
 
     // Debug logging for availability display
     if (availabilities && availabilities.length > 0) {
-      console.log(`Rendering shift cell for employee ${employeeId}, day ${day} with ${availabilities.length} availabilities:`, availabilities);
+      console.log(
+        `Rendering shift cell for employee ${employeeId}, day ${day} with ${availabilities.length} availabilities:`,
+        availabilities
+      );
     }
 
     return (
-      <div className="h-full w-full flex flex-col relative min-h-[4rem]">
-        {/* Display availabilities in top right corner */}
+      <div
+        className={`h-full w-full flex flex-col relative min-h-[5rem] p-2 transition-all duration-200 ${
+          isToday ? "bg-blue-50/30" : ""
+        }`}
+      >
+        {/* Display availabilities in top section */}
         {availabilities && availabilities.length > 0 ? (
-          <div className="absolute top-0 right-0 z-10 flex flex-wrap gap-0.5 max-w-[90%]">
+          <div className="flex flex-wrap gap-1 mb-2">
             {availabilities.map((availability, index) => {
               // Parse timestamps first
               const startTimeDate = parseTimestamp(availability.startTime);
@@ -1961,14 +2075,17 @@ function ScheduleApp() {
                 return null;
               }
 
-              const timeStr = `${formatTime(startTimeDate)}-${formatTime(endTimeDate)}`;
+              const timeStr = `${formatTime(startTimeDate)}-${formatTime(
+                endTimeDate
+              )}`;
 
               return (
                 <div
                   key={`avail-${index}`}
-                  className="bg-green-50 border border-green-300 rounded px-1 py-0.5 text-[9px] text-green-800 hover:bg-green-100 shadow-sm"
+                  className="bg-gradient-to-r from-emerald-50 to-emerald-100 border border-emerald-300 rounded-md px-2 py-1 text-xs text-emerald-800 hover:from-emerald-100 hover:to-emerald-200 shadow-sm transition-all duration-200 cursor-help"
                   title={`Available: ${timeStr}`}
                 >
+                  <Clock className="w-3 h-3 inline mr-1" />
                   {timeStr}
                 </div>
               );
@@ -1980,39 +2097,54 @@ function ScheduleApp() {
         {shift && (
           <div
             className={`${
-              positionColors[shift.position] || "bg-gray-100 border-gray-300"
-            } border rounded p-1 text-xs relative mb-1 cursor-pointer mt-5`}
+              positionColors[shift.position] ||
+              "bg-gradient-to-br from-slate-100 to-slate-200 border-slate-300 text-slate-800"
+            } border-2 rounded-lg p-3 text-sm relative cursor-pointer shadow-sm transition-all duration-200 hover:shadow-md hover:scale-105 group`}
             onClick={(e) => {
               e.stopPropagation();
               openShiftModal(employeeId, day, shift);
             }}
           >
-            {formatShiftDisplay(shift)}
+            {/* Shift Details */}
+            <div className="font-semibold mb-1">
+              {formatShiftDisplay(shift)}
+            </div>
+            <div className="text-xs opacity-75 mb-1">{shift.position}</div>
+            <div className="text-xs font-medium">{shift.duration}</div>
+
+            {/* Delete Button - Only show when schedule is not published */}
             {!isSchedulePublished && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   deleteShift(employeeId, shift.id);
                 }}
-                className="absolute top-0 right-0 text-red-500 opacity-0 group-hover:opacity-100"
+                className="absolute top-1 right-1 text-red-500 opacity-0 group-hover:opacity-100 hover:bg-red-100 rounded-full p-1 transition-all duration-200"
                 title="Delete shift"
               >
-                <Trash2 size={12} />
+                <Trash2 size={14} />
               </button>
             )}
           </div>
         )}
 
-        {/* Add empty div for clickable area if no shift */}
+        {/* Add empty area for creating new shifts */}
         {!shift && (
           <div
             className={`h-full w-full cursor-${
               isSchedulePublished ? "default" : "pointer"
-            } mt-5`}
+            } border-2 border-dashed border-slate-300 rounded-lg flex items-center justify-center hover:border-slate-400 hover:bg-slate-50 transition-all duration-200 group`}
             onClick={() =>
               !isSchedulePublished && openShiftModal(employeeId, day)
             }
-          ></div>
+          >
+            {!isSchedulePublished && (
+              <div className="text-slate-400 group-hover:text-slate-600 transition-colors duration-200">
+                <Plus className="w-6 h-6 mx-auto mb-1" />
+                <div className="text-xs font-medium">Add Shift</div>
+              </div>
+            )}
+          </div>
         )}
       </div>
     );
@@ -2275,10 +2407,17 @@ function ScheduleApp() {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="text-2xl text-gray-700 flex flex-col items-center">
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-          Loading schedule data...
+      <div className="flex justify-center items-center h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        <div className="text-center">
+          <div className="bg-white rounded-2xl p-8 shadow-xl">
+            <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
+            <h3 className="text-xl font-semibold text-slate-800 mb-2">
+              Loading Schedule
+            </h3>
+            <p className="text-slate-600">
+              Please wait while we fetch your schedule data...
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -2286,19 +2425,25 @@ function ScheduleApp() {
 
   if (error && employees.length === 0) {
     return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="text-xl text-red-500">
-          Error loading data: {error}
-          <div className="mt-4">
+      <div className="flex justify-center items-center h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        <div className="text-center">
+          <div className="bg-white rounded-2xl p-8 shadow-xl max-w-md">
+            <div className="bg-red-100 rounded-full p-4 w-16 h-16 mx-auto mb-6 flex items-center justify-center">
+              <AlertCircle className="w-8 h-8 text-red-600" />
+            </div>
+            <h3 className="text-xl font-semibold text-slate-800 mb-2">
+              Error Loading Data
+            </h3>
+            <p className="text-slate-600 mb-6">{error}</p>
             <button
-              className="px-4 py-2 bg-blue-500 text-white rounded"
+              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
               onClick={() => {
                 setError(null);
                 fetchEmployees();
                 fetchScheduleForWeek(currentWeekStart);
               }}
             >
-              Retry
+              Try Again
             </button>
           </div>
         </div>
@@ -2307,241 +2452,419 @@ function ScheduleApp() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-full bg-gray-50">
-      {/* Schedule Controls */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center p-2 lg:p-4 border-b space-y-2 lg:space-y-0">
-        <div className="flex items-center space-x-2 lg:space-x-4 mt-10 lg:mt-0">
-          <div className="flex border rounded">
-            <button
-              className="px-2 lg:px-3 py-1 text-gray-700 flex items-center"
-              onClick={goToPreviousWeek}
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button className="px-2 lg:px-3 py-1 text-blue-500 flex items-center text-xs lg:text-sm">
-              {formatDateRange()}{" "}
-              <ChevronRight className="ml-1 transform rotate-90" size={16} />
-            </button>
-            <button
-              className="px-2 lg:px-3 py-1 text-gray-700 flex items-center"
-              onClick={goToNextWeek}
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-
-          <button
-            className="px-2 lg:px-3 py-1 border rounded text-gray-700 text-xs lg:text-sm"
-            onClick={goToToday}
-          >
-            Today
-          </button>
-
-          {/* Export buttons */}
-          <div className="flex items-center space-x-1 lg:space-x-2">
-            <button
-              className="px-2 lg:px-3 py-1 bg-red-500 text-white rounded flex items-center text-xs lg:text-sm hover:bg-red-600 transition-colors"
-              onClick={exportToPDF}
-              title="Export schedule as PDF"
-            >
-              <FileText size={14} className="mr-1" />
-              PDF
-            </button>
-            <button
-              className="px-2 lg:px-3 py-1 bg-green-500 text-white rounded flex items-center text-xs lg:text-sm hover:bg-green-600 transition-colors"
-              onClick={exportToExcel}
-              title="Export schedule as Excel"
-            >
-              <Download size={14} className="mr-1" />
-              Excel
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-2 lg:space-x-4 w-full lg:w-auto">
-          {/* Only show Create Schedule button when no schedule exists */}
-          {!currentScheduleId && (
-            <button
-              className="px-3 lg:px-4 py-1 lg:py-2 bg-green-500 text-white rounded flex items-center text-xs lg:text-sm"
-              onClick={saveScheduleDraft}
-              disabled={isSaving}
-            >
-              <Save size={16} className="mr-1" />
-              {isSaving ? "Saving..." : "Create Schedule"}
-            </button>
-          )}
-
-          {currentScheduleId && !isSchedulePublished && (
-            <button
-              className="px-3 lg:px-4 py-1 lg:py-2 bg-green-600 text-white rounded flex items-center text-xs lg:text-sm"
-              onClick={publishSchedule}
-              disabled={isSaving}
-            >
-              <Edit size={16} className="mr-1" />
-              {isSaving ? "Publishing..." : "Publish Schedule"}
-            </button>
-          )}
-
-          {currentScheduleId && isSchedulePublished && (
-            <button
-              className="px-3 lg:px-4 py-1 lg:py-2 bg-blue-500 text-white rounded flex items-center text-xs lg:text-sm"
-              onClick={editPublishedSchedule}
-              disabled={isSaving}
-            >
-              <Edit size={16} className="mr-1" />
-              {isSaving ? "Processing..." : "Edit Schedule"}
-            </button>
-          )}
-
-          {/* Keep only restaurant ID, remove username and logout button */}
-          <div className="hidden lg:flex items-center">
-            {user && (
-              <div className="flex flex-col text-sm mr-3">
-                <span className="text-xs text-gray-500">
-                  {user.businessUnitName || "Restaurant"} (ID:{" "}
-                  {getRestaurantId()})
-                </span>
+    <div className="flex flex-col min-h-screen w-full bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      {/* Professional Navigation & Action Header */}
+      <div className="bg-white shadow-sm border-b border-slate-200">
+        {/* Primary Navigation Bar */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center px-6 py-4 space-y-4 lg:space-y-0">
+          {/* Left: Navigation Controls */}
+          <div className="flex items-center space-x-6">
+            {/* Week Navigation */}
+            <div className="flex items-center bg-slate-100 rounded-xl p-1 shadow-inner">
+              <button
+                className="px-3 py-2 text-slate-600 hover:text-slate-800 hover:bg-white rounded-lg transition-all duration-200 flex items-center shadow-sm hover:shadow-md"
+                onClick={goToPreviousWeek}
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <div className="px-4 py-2 text-slate-800 font-semibold text-sm lg:text-base bg-white rounded-lg shadow-sm mx-1 min-w-0">
+                <div className="text-center">
+                  <div className="font-bold text-slate-900">
+                    {formatDateRange()}
+                  </div>
+                  <div className="text-xs text-slate-500 font-normal">
+                    Week Schedule
+                  </div>
+                </div>
               </div>
+              <button
+                className="px-3 py-2 text-slate-600 hover:text-slate-800 hover:bg-white rounded-lg transition-all duration-200 flex items-center shadow-sm hover:shadow-md"
+                onClick={goToNextWeek}
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+
+            {/* Today Button */}
+            <button
+              className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 text-sm font-medium shadow-sm hover:shadow-md"
+              onClick={goToToday}
+            >
+              <Calendar size={16} className="inline mr-2" />
+              Today
+            </button>
+          </div>
+
+          {/* Right: Action Buttons */}
+          <div className="flex items-center space-x-3 w-full lg:w-auto">
+            {/* Export Actions */}
+            <div className="flex items-center space-x-2 bg-slate-50 rounded-lg p-1">
+              <button
+                className="px-3 py-2 bg-white border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 rounded-md flex items-center text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md"
+                onClick={exportToPDF}
+                title="Export PDF"
+              >
+                <FileText size={14} className="mr-1.5" />
+                PDF
+              </button>
+              <button
+                className="px-3 py-2 bg-white border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 rounded-md flex items-center text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md"
+                onClick={exportToExcel}
+                title="Export Excel"
+              >
+                <Download size={14} className="mr-1.5" />
+                CSV
+              </button>
+            </div>
+
+            {/* Primary Action Button */}
+            {!currentScheduleId && (
+              <button
+                className="px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg flex items-center font-medium transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={saveScheduleDraft}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <Loader2 size={16} className="mr-2 animate-spin" />
+                ) : (
+                  <Plus size={16} className="mr-2" />
+                )}
+                <span>{isSaving ? "Creating..." : "Create Schedule"}</span>
+              </button>
+            )}
+
+            {currentScheduleId && !isSchedulePublished && (
+              <button
+                className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg flex items-center font-medium transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={publishSchedule}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <Loader2 size={16} className="mr-2 animate-spin" />
+                ) : (
+                  <CheckCircle size={16} className="mr-2" />
+                )}
+                <span>{isSaving ? "Publishing..." : "Publish"}</span>
+              </button>
+            )}
+
+            {currentScheduleId && isSchedulePublished && (
+              <button
+                className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-lg flex items-center font-medium transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={editPublishedSchedule}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <Loader2 size={16} className="mr-2 animate-spin" />
+                ) : (
+                  <Edit2 size={16} className="mr-2" />
+                )}
+                <span>{isSaving ? "Processing..." : "Edit"}</span>
+              </button>
             )}
           </div>
         </div>
+
+        {/* Restaurant Info - Subtle Bottom Bar */}
+        {user && (
+          <div className="px-6 py-2 bg-slate-50 border-t border-slate-100">
+            <div className="flex items-center justify-between text-xs text-slate-500">
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Building2 size={12} />
+                  <span>{user.businessUnitName || "Restaurant"}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span>•</span>
+                  <span>ID: {getRestaurantId()}</span>
+                </div>
+              </div>
+              <div className="text-slate-400">
+                Schedule Management System
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Published Schedule Indicator */}
+      {/* Enhanced Published Schedule Indicator */}
       {isSchedulePublished && (
-        <div className="bg-yellow-100 px-4 py-2 border-t border-b border-yellow-200 text-yellow-800 text-xs lg:text-sm">
-          <span className="font-medium">Published Schedule</span> - This
-          schedule is published and cannot be edited. Use the 'Edit Schedule'
-          button to make changes.
+        <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-l-4 border-amber-400 px-6 py-4 shadow-sm">
+          <div className="flex items-center space-x-3">
+            <div className="flex-shrink-0">
+              <CheckCircle className="h-6 w-6 text-amber-600" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="font-semibold text-amber-800 text-sm">
+                  Published Schedule
+                </span>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                  Live
+                </span>
+              </div>
+              <p className="text-amber-700 text-sm mt-1">
+                This schedule is live and visible to all employees. Use the
+                'Edit Schedule' button to make changes.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Position Legend */}
-      <div className="flex flex-col space-y-2 px-2 lg:px-4 py-2 border-t text-xs lg:text-sm">
-        <div className="flex flex-wrap space-x-2 lg:space-x-4">
-          <div className="font-medium">Position Colors:</div>
-          <div className="flex items-center">
-            <div className="w-3 h-3 lg:w-4 lg:h-4 bg-blue-100 border border-blue-300 mr-1 rounded"></div>
-            <span>Waiter</span>
-          </div>
-          <div className="flex items-center">
-            <div className="w-3 h-3 lg:w-4 lg:h-4 bg-purple-100 border border-purple-300 mr-1 rounded"></div>
-            <span>Bartender</span>
-          </div>
-          <div className="flex items-center">
-            <div className="w-3 h-3 lg:w-4 lg:h-4 bg-green-100 border border-green-300 mr-1 rounded"></div>
-            <span>Cleaner</span>
-          </div>
-        </div>
-        <div className="flex flex-wrap space-x-2 lg:space-x-4">
-          <div className="font-medium">Employee Status:</div>
-          <div className="flex items-center">
-            <div className="w-3 h-3 lg:w-4 lg:h-4 bg-red-100 border border-red-300 mr-1 rounded"></div>
-            <span>Former employee with scheduled shifts</span>
-          </div>
-          <div className="flex items-center">
-            <div className="inline-block bg-green-50 border border-green-300 rounded px-1 py-0.5 text-[10px] text-green-800 mr-1">
-              10:00-14:00
+      {/* Enhanced Position Legend & Info */}
+      <div className="bg-white border-b border-slate-200 px-6 py-4 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+          {/* Position Colors */}
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center text-sm font-medium text-slate-700">
+              <Layout className="w-4 h-4 mr-2 text-slate-500" />
+              Position Types:
             </div>
-            <span>Employee availability</span>
+            <div className="flex items-center bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
+              <div className="w-3 h-3 bg-gradient-to-r from-blue-400 to-blue-500 rounded-full mr-2 shadow-sm"></div>
+              <span className="text-blue-800 font-medium text-sm">Waiter</span>
+            </div>
+            <div className="flex items-center bg-purple-50 border border-purple-200 rounded-lg px-3 py-1.5">
+              <div className="w-3 h-3 bg-gradient-to-r from-purple-400 to-purple-500 rounded-full mr-2 shadow-sm"></div>
+              <span className="text-purple-800 font-medium text-sm">
+                Bartender
+              </span>
+            </div>
+            <div className="flex items-center bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5">
+              <div className="w-3 h-3 bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full mr-2 shadow-sm"></div>
+              <span className="text-emerald-800 font-medium text-sm">
+                Cleaner
+              </span>
+            </div>
+          </div>
+
+          {/* Status Indicators */}
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center text-sm font-medium text-slate-700">
+              <Users className="w-4 h-4 mr-2 text-slate-500" />
+              Status:
+            </div>
+            <div className="flex items-center bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
+              <div className="w-3 h-3 bg-gradient-to-r from-red-400 to-red-500 rounded-full mr-2 shadow-sm"></div>
+              <span className="text-red-800 font-medium text-sm">
+                Former Employee
+              </span>
+            </div>
+            <div className="flex items-center bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5">
+              <Clock className="w-3 h-3 text-emerald-600 mr-2" />
+              <span className="text-emerald-800 font-medium text-sm">
+                Available Time
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Stats Bar - fixed to prevent horizontal scrolling */}
-      <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-7 bg-gray-100 p-2 border-t border-b text-center text-xs gap-1">
-        <div className="flex flex-col justify-center">
-          <div className="text-gray-800 font-medium truncate">
-            {stats.estWages}
+      {/* Professional Stats Dashboard - One Row */}
+      <div className="bg-gradient-to-r from-slate-50 to-blue-50 border-b border-slate-200 py-4">
+        <div className="max-w-7xl mx-auto px-6">
+          {/* Stats Title */}
+          <div className="mb-3">
+            <h3 className="text-lg font-semibold text-slate-800 mb-1">Weekly Overview</h3>
+            <p className="text-sm text-slate-600">Schedule metrics and cost analysis</p>
           </div>
-          <div className="text-gray-500 truncate">WAGES</div>
-        </div>
-        <div className="flex flex-col justify-center">
-          <div className="text-gray-800 font-medium truncate">
-            {stats.scheduledHours}
+          
+          {/* Single Row Stats Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {/* Estimated Wages */}
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 hover:shadow-md transition-all duration-200">
+              <div className="flex items-center justify-between">
+                <div className="p-2 bg-emerald-100 rounded-lg">
+                  <Briefcase className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div className="text-right">
+                  <div className="text-xl font-bold text-slate-900">
+                    {stats.estWages}
+                  </div>
+                  <div className="text-xs font-medium text-slate-500">
+                    Est. Wages
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Scheduled Hours */}
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 hover:shadow-md transition-all duration-200">
+              <div className="flex items-center justify-between">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Clock className="w-4 h-4 text-blue-600" />
+                </div>
+                <div className="text-right">
+                  <div className="text-xl font-bold text-slate-900">
+                    {stats.scheduledHours}
+                  </div>
+                  <div className="text-xs font-medium text-slate-500">
+                    Scheduled Hours
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* OT Hours */}
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 hover:shadow-md transition-all duration-200">
+              <div className="flex items-center justify-between">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <Clock className="w-4 h-4 text-orange-600" />
+                </div>
+                <div className="text-right">
+                  <div className="text-xl font-bold text-slate-900">
+                    {stats.otHours}
+                  </div>
+                  <div className="text-xs font-medium text-slate-500">
+                    OT Hours
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Overtime Cost */}
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 hover:shadow-md transition-all duration-200">
+              <div className="flex items-center justify-between">
+                <div className="p-2 bg-amber-100 rounded-lg">
+                  <AlertCircle className="w-4 h-4 text-amber-600" />
+                </div>
+                <div className="text-right">
+                  <div className="text-xl font-bold text-slate-900">
+                    {stats.otCost}
+                  </div>
+                  <div className="text-xs font-medium text-slate-500">
+                    OT Cost
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Total Shifts */}
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200 hover:shadow-md transition-all duration-200">
+              <div className="flex items-center justify-between">
+                <div className="p-2 bg-indigo-100 rounded-lg">
+                  <Users className="w-4 h-4 text-indigo-600" />
+                </div>
+                <div className="text-right">
+                  <div className="text-xl font-bold text-slate-900">
+                    {stats.totalShifts}
+                  </div>
+                  <div className="text-xs font-medium text-slate-500">
+                    Total Shifts
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="text-gray-500 truncate">HOURS</div>
-        </div>
-        <div className="flex flex-col justify-center">
-          <div
-            className={`font-medium truncate ${
-              parseFloat(stats.laborPercent) > 100
-                ? "text-red-500"
-                : "text-green-500"
-            }`}
-          >
-            {stats.laborPercent}
-          </div>
-          <div className="text-gray-500 truncate">LABOR%</div>
-        </div>
-        <div className="hidden md:flex flex-col justify-center">
-          <div className="text-gray-800 font-medium truncate">
-            {stats.otCost}
-          </div>
-          <div className="text-gray-500 truncate">OT COST</div>
-        </div>
-        <div className="hidden lg:flex flex-col justify-center">
-          <div className="text-gray-800 font-medium truncate">
-            {stats.otHours}
-          </div>
-          <div className="text-gray-500 truncate">OT HRS</div>
-        </div>
-        <div className="hidden lg:flex flex-col justify-center">
-          <div className="text-gray-800 font-medium truncate">
-            {stats.absences}
-          </div>
-          <div className="text-gray-500 truncate">ABS</div>
-        </div>
-        <div className="hidden lg:flex flex-col justify-center">
-          <div className="text-gray-800 font-medium truncate">
-            {stats.totalShifts}
-          </div>
-          <div className="text-gray-500 truncate">SHIFTS</div>
         </div>
       </div>
 
-      {/* Schedule Grid */}
-      <div className="flex-grow overflow-auto w-full h-full">
-        <div className="min-w-full h-full">
-          {/* Day Headers - Enhanced visibility */}
-          <div className="grid grid-cols-8 border-b sticky top-0 bg-white z-10">
-            <div className="p-1 lg:p-2 font-medium text-gray-500 border-r w-20 md:w-32 lg:w-48 min-w-[5rem] md:min-w-[8rem] lg:min-w-[12rem]">
-              <div className="text-[10px] sm:text-xs">EMPLOYEE</div>
-              <div className="text-[8px] sm:text-[10px] text-blue-600">
-                & ID
+      {/* Enhanced Schedule Grid - No Separate Scrolling */}
+      <div className="flex-grow w-full bg-white">
+        {/* Schedule Section Header */}
+        <div className="bg-white border-b border-slate-300 px-6 py-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-slate-800">Weekly Schedule</h3>
+            <div className="text-sm text-slate-500">
+              Drag shifts to reschedule • Click to edit details
+            </div>
+          </div>
+        </div>
+        
+        <div className="w-full">
+          {/* Enhanced Day Headers */}
+          <div className="grid grid-cols-8 border-b-2 border-slate-300 bg-gradient-to-r from-slate-100 to-slate-200 shadow-md">
+            {/* Ultra Compact Employee Column Header */}
+            <div className="p-1 md:p-2 font-semibold text-slate-700 border-r border-slate-300 w-16 md:w-24 lg:w-32 min-w-[4rem] md:min-w-[6rem] lg:min-w-[8rem] bg-slate-200">
+              <div className="flex flex-col">
+                <div className="text-xs font-bold text-slate-800 truncate">TEAM</div>
+                <div className="text-[10px] text-slate-500 font-normal truncate hidden md:block">
+                  Hours & Rate
+                </div>
               </div>
             </div>
-            {daysOfWeek.map((day, i) => (
-              <div
-                key={day}
-                className="p-1 lg:p-2 text-center border-r bg-gray-50"
-              >
-                <div className="font-semibold text-gray-700 text-[10px] sm:text-xs">
-                  {day}
+
+            {/* Day Headers */}
+            {daysOfWeek.map((day, i) => {
+              const isToday = isDateToday(
+                new Date(currentWeekStart.getTime() + i * 24 * 60 * 60 * 1000)
+              );
+              return (
+                <div
+                  key={day}
+                  className={`p-4 text-center border-r border-slate-300 transition-all duration-200 hover:bg-slate-300 ${
+                    isToday
+                      ? "bg-gradient-to-b from-blue-200 to-blue-100 border-blue-300"
+                      : "bg-gradient-to-b from-slate-100 to-slate-50"
+                  }`}
+                >
+                  <div
+                    className={`font-bold text-sm mb-1 ${
+                      isToday ? "text-blue-700" : "text-slate-600"
+                    }`}
+                  >
+                    {day}
+                  </div>
+                  <div
+                    className={`font-bold text-lg ${
+                      isToday ? "text-blue-800" : "text-slate-800"
+                    }`}
+                  >
+                    {columnDates[i]}
+                  </div>
+                  {isToday && (
+                    <div className="text-xs text-blue-600 font-medium mt-1 bg-blue-100 px-2 py-1 rounded-full">
+                      TODAY
+                    </div>
+                  )}
                 </div>
-                <div className="font-bold text-gray-900 text-xs md:text-sm lg:text-lg">
-                  {columnDates[i]}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {/* Employee Rows or No Schedule Message */}
+          {/* Enhanced Employee Rows or No Schedule Message */}
           {!currentScheduleId ? (
-            <div className="text-center p-6 lg:p-12 text-gray-500 text-base lg:text-xl">
-              No schedule found for this week. Please create a schedule first.
+            <div className="flex flex-col items-center justify-center p-12 lg:p-16 text-center">
+              <div className="bg-slate-100 rounded-full p-6 mb-6">
+                <Calendar className="w-12 h-12 text-slate-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-slate-700 mb-2">
+                No Schedule Available
+              </h3>
+              <p className="text-slate-500 mb-6 max-w-md">
+                No schedule found for this week. Create a new schedule to start
+                managing shifts and assignments.
+              </p>
+              <button
+                className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl flex items-center font-semibold transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105"
+                onClick={saveScheduleDraft}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <Loader2 size={18} className="mr-2 animate-spin" />
+                ) : (
+                  <Plus size={18} className="mr-2" />
+                )}
+                <span>{isSaving ? "Creating..." : "Create Schedule"}</span>
+              </button>
             </div>
           ) : getEmployeesToDisplayForWeek().length === 0 ? (
-            <div className="text-center p-4 lg:p-8 text-gray-500">
-              <div className="text-lg font-medium mb-2">No employees found</div>
-              <div className="text-sm">
+            <div className="flex flex-col items-center justify-center p-12 lg:p-16 text-center">
+              <div className="bg-amber-100 rounded-full p-6 mb-6">
+                <Users className="w-12 h-12 text-amber-500" />
+              </div>
+              <h3 className="text-xl font-semibold text-slate-700 mb-2">
+                No Employees Found
+              </h3>
+              <p className="text-slate-500 mb-2 max-w-md">
                 No employees have shifts this week and no current employees are
                 assigned to business unit ID: {getRestaurantId()}
-              </div>
-              <div className="text-sm mt-2 text-gray-400">
+              </p>
+              <p className="text-sm text-slate-400 max-w-md">
                 Please add employees to this business unit or create shifts to
                 see the schedule.
-              </div>
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -2560,101 +2883,126 @@ function ScheduleApp() {
                   return (
                     <div
                       key={employee.id}
-                      className={`grid grid-cols-8 border-b hover:bg-gray-50 text-[10px] sm:text-xs lg:text-sm ${
-                        employee.isGhost ? "bg-red-50 opacity-75" : ""
+                      className={`grid grid-cols-8 border-b border-slate-200 hover:bg-slate-50 transition-all duration-200 text-sm group ${
+                        employee.isGhost ? "bg-red-50/50" : ""
                       }`}
                     >
-                      {/* Employee Info */}
+                      {/* Ultra Compact Employee Info */}
                       <div
-                        className={`p-1 lg:p-2 border-r flex items-center w-20 md:w-32 lg:w-48 min-w-[5rem] md:min-w-[8rem] lg:min-w-[12rem] sticky left-0 z-10 ${
-                          employee.isGhost ? "bg-red-50" : "bg-white"
+                        className={`p-1 md:p-2 border-r border-slate-200 w-16 md:w-24 lg:w-32 min-w-[4rem] md:min-w-[6rem] lg:min-w-[8rem] sticky left-0 z-10 transition-all duration-200 ${
+                          employee.isGhost
+                            ? "bg-red-50/50"
+                            : "bg-white group-hover:bg-slate-50"
                         }`}
                       >
-                        <div
-                          className={`rounded-full h-5 w-5 md:h-6 md:w-6 lg:h-8 lg:w-8 flex items-center justify-center mr-1 lg:mr-2 text-[9px] sm:text-xs lg:text-sm shrink-0 ${
-                            employee.isGhost ? "bg-red-200" : "bg-gray-200"
-                          }`}
-                        >
-                          {employee.name
-                            ?.split(" ")
-                            .map((part) => part[0])
-                            .join("")
-                            .substring(0, 2)
-                            .toUpperCase() || "EE"}
-                        </div>
-                        <div className="truncate">
-                          <div className="font-medium text-[10px] sm:text-xs lg:text-sm">
-                            {employee.isCurrentUser ? (
-                              <span style={{ fontWeight: "bold" }}>
-                                {employee.name || "Unknown Employee"} (me)
-                              </span>
-                            ) : (
-                              <span
-                                className={
-                                  employee.isGhost ? "text-red-600" : ""
-                                }
-                              >
-                                {employee.name || "Unknown Employee"}
-                                {employee.isGhost ? " (former)" : ""}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[8px] sm:text-[10px] lg:text-xs text-gray-500">
-                            <div className="hidden sm:block">
-                              <span className="capitalize">
-                                {employee.role
-                                  ? employee.role
-                                      .toLowerCase()
-                                      .replace(/_/g, " ")
-                                  : "staff"}
-                              </span>
-                              {(() => {
-                                const contractHours =
-                                  employee.contractHours || 40;
-                                const scheduledHours = calculateScheduledHours(
-                                  employee.id
-                                );
-
-                                // Determine color based on comparison
-                                let colorClass = "text-gray-600"; // Default
-                                if (scheduledHours < contractHours) {
-                                  colorClass = "text-red-600"; // Below contract hours
-                                } else if (scheduledHours > contractHours) {
-                                  colorClass = "text-green-600"; // Above contract hours
-                                }
-
-                                return (
-                                  <div>
-                                    <div className="text-[7px] sm:text-[8px] lg:text-[9px] text-gray-700 font-medium">
-                                      Contract: {contractHours}h/week
-                                    </div>
-                                    <div
-                                      className={`text-[7px] sm:text-[8px] lg:text-[9px] font-medium ${colorClass}`}
-                                    >
-                                      Scheduled: {scheduledHours}h
-                                    </div>
-                                  </div>
-                                );
-                              })()}
+                        {/* Employee Details */}
+                        <div className="w-full">
+                          {/* Name and Status */}
+                          <div className="flex flex-col mb-1">
+                            <div
+                              className={`font-semibold text-xs truncate leading-tight ${
+                                employee.isCurrentUser
+                                  ? "text-blue-700"
+                                  : employee.isGhost
+                                  ? "text-red-600"
+                                  : "text-slate-800"
+                              }`}
+                            >
+                              {employee.name || "Unknown"}
+                            </div>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              {employee.isCurrentUser && (
+                                <span className="inline-flex items-center px-1 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-800">
+                                  You
+                                </span>
+                              )}
                               {employee.isGhost && (
-                                <span className="text-red-500 ml-1">
-                                  • No longer in business unit
+                                <span className="inline-flex items-center px-1 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-800">
+                                  Ex
                                 </span>
                               )}
                             </div>
                           </div>
+
+                          {/* Compact Info Grid - Only show on md screens and up */}
+                          <div className="hidden md:block text-[10px] space-y-0.5">
+                            {/* Contract Hours */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500 truncate">Contract:</span>
+                              <span className="font-medium text-slate-700 ml-1">
+                                {employee.contractHours ? `${employee.contractHours}h` : "N/A"}
+                              </span>
+                            </div>
+                            
+                            {/* Hourly Rate */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500 truncate">Rate:</span>
+                              <span className="font-medium text-emerald-600 ml-1">
+                                {employee.hourlyPayment ? `$${employee.hourlyPayment.toFixed(2)}` : "N/A"}
+                              </span>
+                            </div>
+                            
+                            {/* Break Duration */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500 truncate">Break:</span>
+                              <span className="font-medium text-slate-600 ml-1">
+                                {employee.breakDurationMinutes ? `${employee.breakDurationMinutes}min` : "N/A"}
+                              </span>
+                            </div>
+                            
+                            {/* Scheduled Hours - Only show if we have contract hours */}
+                            {employee.contractHours && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-slate-500 truncate">Sched:</span>
+                                {(() => {
+                                  const scheduledHours = calculateScheduledHours(employee.id);
+                                  const contractHours = employee.contractHours;
+                                  
+                                  let colorClass = "text-slate-600";
+                                  if (scheduledHours < contractHours) {
+                                    colorClass = "text-red-600";
+                                  } else if (scheduledHours > contractHours) {
+                                    colorClass = "text-emerald-600";
+                                  }
+
+                                  return (
+                                    <span className={`font-semibold ml-1 ${colorClass}`}>
+                                      {scheduledHours}h
+                                    </span>
+                                  );
+                                })()}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Mobile-only minimal info */}
+                          <div className="md:hidden text-[9px] text-slate-500">
+                            {employee.contractHours ? `${employee.contractHours}h` : "N/A"} • 
+                            {employee.hourlyPayment ? `$${employee.hourlyPayment.toFixed(2)}` : "N/A"} • 
+                            {employee.breakDurationMinutes ? `${employee.breakDurationMinutes}min` : "N/A"}
+                          </div>
                         </div>
                       </div>
 
-                      {/* Shifts */}
-                      {Array.from({ length: 7 }, (_, day) => (
-                        <div
-                          key={day}
-                          className="p-1 md:p-2 border-r relative min-h-[4rem] flex-1"
-                        >
-                          {renderShiftCell(employee.id, day)}
-                        </div>
-                      ))}
+                      {/* Enhanced Shift Cells */}
+                      {Array.from({ length: 7 }, (_, day) => {
+                        const isToday = isDateToday(
+                          new Date(
+                            currentWeekStart.getTime() +
+                              day * 24 * 60 * 60 * 1000
+                          )
+                        );
+                        return (
+                          <div
+                            key={day}
+                            className={`border-r border-slate-200 relative min-h-[6rem] transition-all duration-200 ${
+                              isToday ? "bg-blue-50/20" : ""
+                            }`}
+                          >
+                            {renderShiftCell(employee.id, day)}
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })}
@@ -2663,337 +3011,362 @@ function ScheduleApp() {
         </div>
       </div>
 
-      {/* Shift Modal */}
+      {/* Enhanced Shift Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50 p-4">
-          <div className="bg-white rounded-lg p-4 lg:p-6 w-full max-w-xs lg:max-w-md">
-            <h2 className="text-lg lg:text-xl font-bold mb-3 lg:mb-4">
-              {currentShift.id.includes("new") ? "Create Shift" : "Edit Shift"}
-            </h2>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 transform transition-all duration-300 scale-100">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-t-2xl px-6 py-4 border-b border-slate-200">
+              <h2 className="text-xl font-bold text-slate-800 flex items-center">
+                {currentShift.id.includes("new") ? (
+                  <>
+                    <Plus className="w-5 h-5 mr-2 text-emerald-600" />
+                    Create New Shift
+                  </>
+                ) : (
+                  <>
+                    <Edit2 className="w-5 h-5 mr-2 text-blue-600" />
+                    Edit Shift
+                  </>
+                )}
+              </h2>
+              <p className="text-sm text-slate-600 mt-1">
+                {currentShift.id.includes("new")
+                  ? "Add a new shift to the schedule"
+                  : "Modify the existing shift details"}
+              </p>
+            </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Employee
-              </label>
-              <select
-                className="w-full border rounded p-2"
-                value={currentShift.employeeId}
-                onChange={(e) =>
-                  setCurrentShift({
-                    ...currentShift,
-                    employeeId: e.target.value,
-                    business:
-                      employees.find((emp) => emp.id === e.target.value)
-                        ?.businessUnitName || "Test Business",
-                  })
-                }
-              >
-                {employees
-                  .sort((a, b) => {
-                    // Current user always comes first
-                    if (a.isCurrentUser && !b.isCurrentUser) return -1;
-                    if (!a.isCurrentUser && b.isCurrentUser) return 1;
+            {/* Modal Body */}
+            <div className="p-6 space-y-6">
+              {/* Employee Selection */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center">
+                  <Users className="w-4 h-4 mr-2 text-slate-500" />
+                  Employee
+                </label>
+                <select
+                  className="w-full border-2 border-slate-200 rounded-lg p-3 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
+                  value={currentShift.employeeId}
+                  onChange={(e) =>
+                    setCurrentShift({
+                      ...currentShift,
+                      employeeId: e.target.value,
+                      business:
+                        employees.find((emp) => emp.id === e.target.value)
+                          ?.businessUnitName || "Test Business",
+                    })
+                  }
+                >
+                  {employees
+                    .sort((a, b) => {
+                      // Current user always comes first
+                      if (a.isCurrentUser && !b.isCurrentUser) return -1;
+                      if (!a.isCurrentUser && b.isCurrentUser) return 1;
 
-                    // If both are current user or both are not, sort alphabetically by name
-                    const nameA = (a.name || "Unknown Employee").toLowerCase();
-                    const nameB = (b.name || "Unknown Employee").toLowerCase();
-                    return nameA.localeCompare(nameB);
-                  })
-                  .map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.name}
-                      {emp.isCurrentUser ? " (me)" : ""}
+                      // If both are current user or both are not, sort alphabetically by name
+                      const nameA = (
+                        a.name || "Unknown Employee"
+                      ).toLowerCase();
+                      const nameB = (
+                        b.name || "Unknown Employee"
+                      ).toLowerCase();
+                      return nameA.localeCompare(nameB);
+                    })
+                    .map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name}
+                        {emp.isCurrentUser ? " (me)" : ""}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Position Selection */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center">
+                  <Briefcase className="w-4 h-4 mr-2 text-slate-500" />
+                  Position
+                </label>
+                <select
+                  className="w-full border-2 border-slate-200 rounded-lg p-3 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
+                  value={currentShift.position}
+                  onChange={(e) =>
+                    setCurrentShift({
+                      ...currentShift,
+                      position: e.target.value,
+                    })
+                  }
+                >
+                  {positions.map((pos) => (
+                    <option key={pos} value={pos}>
+                      {pos}
                     </option>
                   ))}
-              </select>
-            </div>
+                </select>
+              </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Position
-              </label>
-              <select
-                className="w-full border rounded p-2"
-                value={currentShift.position}
-                onChange={(e) =>
-                  setCurrentShift({ ...currentShift, position: e.target.value })
-                }
-              >
-                {positions.map((pos) => (
-                  <option key={pos} value={pos}>
-                    {pos}
-                  </option>
-                ))}
-              </select>
-            </div>
+              {/* Time Selection */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center">
+                    <Clock className="w-4 h-4 mr-2 text-slate-500" />
+                    Start Time
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full border-2 border-slate-200 rounded-lg p-3 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
+                    placeholder="e.g. 08:00"
+                    value={currentShift.startTime}
+                    onChange={(e) => {
+                      // Time validation and formatting logic (keeping existing logic)
+                      let inputValue = e.target.value;
+                      inputValue = inputValue.replace(/[^0-9:]/g, "");
 
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Start Time
-                </label>
-                <input
-                  type="text"
-                  className="w-full border rounded p-2"
-                  placeholder="e.g. 08:00"
-                  value={currentShift.startTime}
-                  onChange={(e) => {
-                    // Get the input value
-                    let inputValue = e.target.value;
+                      if (inputValue) {
+                        const numbers = inputValue.replace(/[^0-9]/g, "");
 
-                    // Only allow numbers and colon
-                    inputValue = inputValue.replace(/[^0-9:]/g, "");
-
-                    // Apply 24-hour format masking
-                    if (inputValue) {
-                      const numbers = inputValue.replace(/[^0-9]/g, "");
-
-                      // Format hours (00-23)
-                      if (numbers.length >= 1) {
-                        // Format the hours part
-                        if (numbers.length === 1) {
-                          // Single digit, keep as is
-                          inputValue = numbers;
-                        } else {
-                          // Ensure hour is 0-23
-                          const hours = parseInt(numbers.substring(0, 2));
-
-                          if (hours > 23) {
-                            // Clamp to 23
-                            inputValue = "23";
+                        if (numbers.length >= 1) {
+                          if (numbers.length === 1) {
+                            inputValue = numbers;
                           } else {
-                            // Pad with zero if needed
-                            inputValue =
-                              hours < 10 ? "0" + hours : hours.toString();
-                          }
+                            const hours = parseInt(numbers.substring(0, 2));
 
-                          // Add colon after hours if we have more digits
-                          if (numbers.length >= 3) {
-                            inputValue += ":";
+                            if (hours > 23) {
+                              inputValue = "23";
+                            } else {
+                              inputValue =
+                                hours < 10 ? "0" + hours : hours.toString();
+                            }
 
-                            // Add minutes if available
                             if (numbers.length >= 3) {
-                              // First minute digit
-                              const firstMinDigit = numbers.substring(2, 3);
-                              inputValue += firstMinDigit;
+                              inputValue += ":";
 
-                              // Add second minute digit if available
-                              if (numbers.length >= 4) {
-                                const secondMinDigit = numbers.substring(3, 4);
-                                inputValue += secondMinDigit;
+                              if (numbers.length >= 3) {
+                                const firstMinDigit = numbers.substring(2, 3);
+                                inputValue += firstMinDigit;
+
+                                if (numbers.length >= 4) {
+                                  const secondMinDigit = numbers.substring(
+                                    3,
+                                    4
+                                  );
+                                  inputValue += secondMinDigit;
+                                }
                               }
                             }
                           }
                         }
                       }
-                    }
 
-                    // Set the updated value
-                    const startTime = inputValue;
-                    let endTime = currentShift.endTime;
-                    let duration = currentShift.duration;
+                      const startTime = inputValue;
+                      let endTime = currentShift.endTime;
+                      let duration = currentShift.duration;
 
-                    // If both start and end times are valid, calculate duration
-                    if (
-                      /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(startTime) &&
-                      /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(endTime)
-                    ) {
-                      try {
-                        // Parse start time
-                        const [startHour, startMin] = startTime
-                          .split(":")
-                          .map((num) => parseInt(num));
+                      if (
+                        /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(startTime) &&
+                        /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(endTime)
+                      ) {
+                        try {
+                          const [startHour, startMin] = startTime
+                            .split(":")
+                            .map((num) => parseInt(num));
+                          const [endHour, endMin] = endTime
+                            .split(":")
+                            .map((num) => parseInt(num));
 
-                        // Parse end time
-                        const [endHour, endMin] = endTime
-                          .split(":")
-                          .map((num) => parseInt(num));
+                          let durationHours = endHour - startHour;
+                          let durationMinutes = endMin - startMin;
 
-                        // Calculate duration
-                        let durationHours = endHour - startHour;
-                        let durationMinutes = endMin - startMin;
-
-                        // Handle next day scenario
-                        if (durationHours < 0) {
-                          durationHours += 24;
-                        }
-
-                        // Handle negative minutes
-                        if (durationMinutes < 0) {
-                          durationHours--;
-                          durationMinutes += 60;
-                        }
-
-                        duration = `${durationHours}h${
-                          durationMinutes > 0 ? ` ${durationMinutes}min` : ""
-                        }`;
-                      } catch (e) {
-                        console.error("Error calculating duration:", e);
-                      }
-                    }
-
-                    setCurrentShift({
-                      ...currentShift,
-                      startTime,
-                      duration,
-                    });
-                  }}
-                />
-                {!/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(
-                  currentShift.startTime
-                ) &&
-                  currentShift.startTime && (
-                    <div className="text-red-500 text-xs mt-1">
-                      Please use 24-hour format (00:00 - 23:59)
-                    </div>
-                  )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  End Time
-                </label>
-                <input
-                  type="text"
-                  className="w-full border rounded p-2"
-                  placeholder="e.g. 17:00"
-                  value={currentShift.endTime}
-                  onChange={(e) => {
-                    // Get the input value
-                    let inputValue = e.target.value;
-
-                    // Only allow numbers and colon
-                    inputValue = inputValue.replace(/[^0-9:]/g, "");
-
-                    // Apply 24-hour format masking
-                    if (inputValue) {
-                      const numbers = inputValue.replace(/[^0-9]/g, "");
-
-                      // Format hours (00-23)
-                      if (numbers.length >= 1) {
-                        // Format the hours part
-                        if (numbers.length === 1) {
-                          // Single digit, keep as is
-                          inputValue = numbers;
-                        } else {
-                          // Ensure hour is 0-23
-                          const hours = parseInt(numbers.substring(0, 2));
-
-                          if (hours > 23) {
-                            // Clamp to 23
-                            inputValue = "23";
-                          } else {
-                            // Pad with zero if needed
-                            inputValue =
-                              hours < 10 ? "0" + hours : hours.toString();
+                          if (durationHours < 0) {
+                            durationHours += 24;
                           }
 
-                          // Add colon after hours if we have more digits
-                          if (numbers.length >= 3) {
-                            inputValue += ":";
+                          if (durationMinutes < 0) {
+                            durationHours--;
+                            durationMinutes += 60;
+                          }
 
-                            // Add minutes if available
+                          duration = `${durationHours}h${
+                            durationMinutes > 0 ? ` ${durationMinutes}min` : ""
+                          }`;
+                        } catch (e) {
+                          console.error("Error calculating duration:", e);
+                        }
+                      }
+
+                      setCurrentShift({
+                        ...currentShift,
+                        startTime,
+                        duration,
+                      });
+                    }}
+                  />
+                  {!/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(
+                    currentShift.startTime
+                  ) &&
+                    currentShift.startTime && (
+                      <div className="text-red-500 text-xs mt-2 flex items-center">
+                        <AlertCircle className="w-3 h-3 mr-1" />
+                        Please use 24-hour format (00:00 - 23:59)
+                      </div>
+                    )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center">
+                    <Clock className="w-4 h-4 mr-2 text-slate-500" />
+                    End Time
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full border-2 border-slate-200 rounded-lg p-3 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
+                    placeholder="e.g. 17:00"
+                    value={currentShift.endTime}
+                    onChange={(e) => {
+                      // Similar time validation logic for end time (keeping existing logic)
+                      let inputValue = e.target.value;
+                      inputValue = inputValue.replace(/[^0-9:]/g, "");
+
+                      if (inputValue) {
+                        const numbers = inputValue.replace(/[^0-9]/g, "");
+
+                        if (numbers.length >= 1) {
+                          if (numbers.length === 1) {
+                            inputValue = numbers;
+                          } else {
+                            const hours = parseInt(numbers.substring(0, 2));
+
+                            if (hours > 23) {
+                              inputValue = "23";
+                            } else {
+                              inputValue =
+                                hours < 10 ? "0" + hours : hours.toString();
+                            }
+
                             if (numbers.length >= 3) {
-                              // First minute digit
-                              const firstMinDigit = numbers.substring(2, 3);
-                              inputValue += firstMinDigit;
+                              inputValue += ":";
 
-                              // Add second minute digit if available
-                              if (numbers.length >= 4) {
-                                const secondMinDigit = numbers.substring(3, 4);
-                                inputValue += secondMinDigit;
+                              if (numbers.length >= 3) {
+                                const firstMinDigit = numbers.substring(2, 3);
+                                inputValue += firstMinDigit;
+
+                                if (numbers.length >= 4) {
+                                  const secondMinDigit = numbers.substring(
+                                    3,
+                                    4
+                                  );
+                                  inputValue += secondMinDigit;
+                                }
                               }
                             }
                           }
                         }
                       }
-                    }
 
-                    // Set the updated value
-                    const endTime = inputValue;
-                    const startTime = currentShift.startTime;
-                    let duration = currentShift.duration;
+                      const endTime = inputValue;
+                      const startTime = currentShift.startTime;
+                      let duration = currentShift.duration;
 
-                    // If both start and end times are valid, calculate duration
-                    if (
-                      /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(startTime) &&
-                      /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(endTime)
-                    ) {
-                      try {
-                        // Parse start time
-                        const [startHour, startMin] = startTime
-                          .split(":")
-                          .map((num) => parseInt(num));
+                      if (
+                        /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(startTime) &&
+                        /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(endTime)
+                      ) {
+                        try {
+                          const [startHour, startMin] = startTime
+                            .split(":")
+                            .map((num) => parseInt(num));
+                          const [endHour, endMin] = endTime
+                            .split(":")
+                            .map((num) => parseInt(num));
 
-                        // Parse end time
-                        const [endHour, endMin] = endTime
-                          .split(":")
-                          .map((num) => parseInt(num));
+                          let durationHours = endHour - startHour;
+                          let durationMinutes = endMin - startMin;
 
-                        // Calculate duration
-                        let durationHours = endHour - startHour;
-                        let durationMinutes = endMin - startMin;
+                          if (durationHours < 0) {
+                            durationHours += 24;
+                          }
 
-                        // Handle next day scenario
-                        if (durationHours < 0) {
-                          durationHours += 24;
+                          if (durationMinutes < 0) {
+                            durationHours--;
+                            durationMinutes += 60;
+                          }
+
+                          duration = `${durationHours}h${
+                            durationMinutes > 0 ? ` ${durationMinutes}min` : ""
+                          }`;
+                        } catch (e) {
+                          console.error("Error calculating duration:", e);
                         }
-
-                        // Handle negative minutes
-                        if (durationMinutes < 0) {
-                          durationHours--;
-                          durationMinutes += 60;
-                        }
-
-                        duration = `${durationHours}h${
-                          durationMinutes > 0 ? ` ${durationMinutes}min` : ""
-                        }`;
-                      } catch (e) {
-                        console.error("Error calculating duration:", e);
                       }
-                    }
 
-                    setCurrentShift({
-                      ...currentShift,
-                      endTime,
-                      duration,
-                    });
-                  }}
-                />
-                {!/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(
-                  currentShift.endTime
-                ) &&
-                  currentShift.endTime && (
-                    <div className="text-red-500 text-xs mt-1">
-                      Please use 24-hour format (00:00 - 23:59)
-                    </div>
-                  )}
+                      setCurrentShift({
+                        ...currentShift,
+                        endTime,
+                        duration,
+                      });
+                    }}
+                  />
+                  {!/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(
+                    currentShift.endTime
+                  ) &&
+                    currentShift.endTime && (
+                      <div className="text-red-500 text-xs mt-2 flex items-center">
+                        <AlertCircle className="w-3 h-3 mr-1" />
+                        Please use 24-hour format (00:00 - 23:59)
+                      </div>
+                    )}
+                </div>
               </div>
-            </div>
 
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-6 gap-2">
-              {!currentShift.id.includes("new") && (
-                <button
-                  className="bg-red-500 text-white px-4 py-2 rounded flex items-center justify-center"
-                  onClick={() => {
-                    deleteShift(currentShift.employeeId, currentShift.id);
-                  }}
-                >
-                  <Trash2 size={16} className="mr-1" /> Delete
-                </button>
+              {/* Duration Display */}
+              {currentShift.duration && (
+                <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                  <div className="flex items-center text-sm text-slate-600">
+                    <Clock className="w-4 h-4 mr-2" />
+                    <span className="font-medium">Duration: </span>
+                    <span className="ml-1 font-bold text-slate-800">
+                      {currentShift.duration}
+                    </span>
+                  </div>
+                </div>
               )}
-              <div className="flex ml-auto space-x-2">
-                <button
-                  className="border px-4 py-2 rounded"
-                  onClick={() => setIsModalOpen(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="bg-blue-500 text-white px-4 py-2 rounded"
-                  onClick={saveShift}
-                >
-                  Create Schedule
-                </button>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-slate-50 rounded-b-2xl px-6 py-4 border-t border-slate-200">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                {/* Delete Button - Only for existing shifts */}
+                {!currentShift.id.includes("new") && (
+                  <button
+                    className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-4 py-2 rounded-lg flex items-center justify-center font-medium transition-all duration-200 shadow-md hover:shadow-lg"
+                    onClick={() => {
+                      deleteShift(currentShift.employeeId, currentShift.id);
+                    }}
+                  >
+                    <Trash2 size={16} className="mr-2" />
+                    Delete Shift
+                  </button>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex ml-auto space-x-3">
+                  <button
+                    className="border-2 border-slate-300 text-slate-700 px-6 py-2 rounded-lg hover:bg-slate-50 hover:border-slate-400 transition-all duration-200 font-medium"
+                    onClick={() => setIsModalOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg flex items-center"
+                    onClick={saveShift}
+                  >
+                    <Save size={16} className="mr-2" />
+                    {currentShift.id.includes("new")
+                      ? "Create Shift"
+                      : "Save Changes"}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

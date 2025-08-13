@@ -6,6 +6,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
+import { NotificationProvider } from "./components/NotificationContext";
 import ProtectedRoute from "./auth/ProtectedRoute";
 import Layout from "./components/Layout";
 import LoginPage from "./pages/LoginPage";
@@ -27,7 +28,8 @@ import PostsView from "./pages/PostsView";
 function App() {
   return (
     <AuthProvider>
-      <Router>
+      <NotificationProvider>
+        <Router>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route
@@ -137,6 +139,7 @@ function App() {
           />
         </Routes>
       </Router>
+      </NotificationProvider>
     </AuthProvider>
   );
 }
