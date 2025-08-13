@@ -6,13 +6,10 @@ import {
   Search,
   Edit3,
   Trash2,
-  Coffee,
-  Utensils,
   DollarSign,
   Save,
   X,
   AlertCircle,
-  CheckCircle,
   Building,
 } from "lucide-react";
 
@@ -25,7 +22,7 @@ const ConsumptionItemManagement = () => {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
-  const [isAddingItem, setIsAddingItem] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [businessUnitName, setBusinessUnitName] = useState("");
 
@@ -57,14 +54,14 @@ const ConsumptionItemManagement = () => {
     try {
       const businessUnitId = getRestaurantId();
       console.log("Fetching business unit info for ID:", businessUnitId);
-      
+
       const response = await authenticatedFetch(
         `${ORGANIZATION_BASE_URL}/business-units/${businessUnitId}`,
         { method: "GET" }
       );
 
       console.log("Business unit fetch response status:", response.status);
-      
+
       if (response.ok) {
         const data = await response.json();
         console.log("Business unit data:", data);
@@ -73,7 +70,9 @@ const ConsumptionItemManagement = () => {
         console.error("Failed to fetch business unit:", response.status);
         const errorText = await response.text();
         console.error("Business unit error response:", errorText);
-        setError(`Business unit not found (${response.status}). This may be why consumption items cannot be created.`);
+        setError(
+          `Business unit not found (${response.status}). This may be why consumption items cannot be created.`
+        );
       }
     } catch (error) {
       console.error("Error fetching business unit info:", error);
@@ -99,7 +98,9 @@ const ConsumptionItemManagement = () => {
         // No items found, set empty array
         setItems([]);
       } else {
-        throw new Error(`Failed to fetch consumption items: ${response.status}`);
+        throw new Error(
+          `Failed to fetch consumption items: ${response.status}`
+        );
       }
     } catch (error) {
       console.error("Error fetching consumption items:", error);
@@ -112,8 +113,12 @@ const ConsumptionItemManagement = () => {
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!formData.name.trim() || !formData.price || isNaN(parseFloat(formData.price))) {
+
+    if (
+      !formData.name.trim() ||
+      !formData.price ||
+      isNaN(parseFloat(formData.price))
+    ) {
       setError("Please provide a valid name and price");
       return;
     }
@@ -121,7 +126,9 @@ const ConsumptionItemManagement = () => {
     // Check if we have a valid business unit
     const businessUnitId = getRestaurantId();
     if (!businessUnitId || businessUnitId === "1") {
-      setError("Cannot create consumption items: No valid business unit found. Please ensure you're assigned to a business unit.");
+      setError(
+        "Cannot create consumption items: No valid business unit found. Please ensure you're assigned to a business unit."
+      );
       return;
     }
 
@@ -130,22 +137,22 @@ const ConsumptionItemManagement = () => {
 
     try {
       console.log("Business Unit ID:", businessUnitId);
-      
+
       const itemData = {
         name: formData.name.trim(),
         price: parseFloat(formData.price),
         type: formData.type,
       };
-      
+
       console.log("Sending item data:", itemData);
 
       const isEditing = editingItem !== null;
       const url = isEditing
         ? `${ORGANIZATION_BASE_URL}/business-units/${businessUnitId}/consumption-items/${editingItem.id}`
         : `${ORGANIZATION_BASE_URL}/business-units/${businessUnitId}/consumption-items`;
-      
+
       console.log("Request URL:", url);
-      
+
       const method = isEditing ? "PUT" : "POST";
 
       const response = await authenticatedFetch(url, {
@@ -159,9 +166,10 @@ const ConsumptionItemManagement = () => {
       if (response.ok) {
         await fetchConsumptionItems(); // Refresh the list
         resetForm();
+        setShowModal(false);
         setError(null);
       } else {
-        let errorMessage = `Failed to ${isEditing ? 'update' : 'create'} item`;
+        let errorMessage = `Failed to ${isEditing ? "update" : "create"} item`;
         try {
           const errorData = await response.text();
           console.error("Server error response:", errorData);
@@ -176,7 +184,9 @@ const ConsumptionItemManagement = () => {
       }
     } catch (error) {
       console.error("Error saving consumption item:", error);
-      setError(`Failed to ${editingItem ? 'update' : 'create'} item: ${error.message}`);
+      setError(
+        `Failed to ${editingItem ? "update" : "create"} item: ${error.message}`
+      );
     } finally {
       setLoading(false);
     }
@@ -217,7 +227,17 @@ const ConsumptionItemManagement = () => {
       price: item.price.toString(),
       type: item.type,
     });
-    setIsAddingItem(true);
+    setShowModal(true);
+  };
+
+  const startAdding = () => {
+    setEditingItem(null);
+    setFormData({
+      name: "",
+      price: "",
+      type: "food",
+    });
+    setShowModal(true);
   };
 
   const resetForm = () => {
@@ -226,13 +246,15 @@ const ConsumptionItemManagement = () => {
       price: "",
       type: "food",
     });
-    setIsAddingItem(false);
+    setShowModal(false);
     setEditingItem(null);
   };
 
   // Filter items based on search term and type
   const filteredItems = items.filter((item) => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = item.name
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
     const matchesType = filterType === "all" || item.type === filterType;
     return matchesSearch && matchesType;
   });
@@ -280,7 +302,7 @@ const ConsumptionItemManagement = () => {
                 </div>
               </div>
               <button
-                onClick={() => setIsAddingItem(true)}
+                onClick={startAdding}
                 disabled={loading}
                 className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm disabled:opacity-50"
               >
@@ -326,176 +348,198 @@ const ConsumptionItemManagement = () => {
           </div>
         )}
 
-        {/* Add/Edit Form */}
-        {isAddingItem && (
-          <div className="bg-white rounded-lg shadow-sm border mb-6">
-            <form onSubmit={handleFormSubmit} className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {editingItem ? "Edit Consumption Item" : "Add New Consumption Item"}
-                </h3>
+        {/* Main Content */}
+        <div className="bg-white rounded-lg shadow-sm border">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <span className="ml-3 text-gray-600">Loading items...</span>
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="text-center py-12">
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                {searchTerm || filterType !== "all"
+                  ? "No items found"
+                  : "No consumption items yet"}
+              </h3>
+              <p className="text-gray-600 mb-6">
+                {searchTerm || filterType !== "all"
+                  ? "Try adjusting your search or filter criteria"
+                  : "Start by adding your first food or drink item"}
+              </p>
+              {!searchTerm && filterType === "all" && (
                 <button
-                  type="button"
-                  onClick={resetForm}
-                  className="text-gray-400 hover:text-gray-600"
+                  onClick={startAdding}
+                  className="flex items-center mx-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                 >
-                  <X className="w-5 h-5" />
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add First Item
                 </button>
-              </div>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Price
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Added
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredItems.map((item) => (
+                    <tr key={item.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {item.name}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 capitalize">
+                          {item.type}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-green-600">
+                          {formatCurrency(item.price)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {item.created_at
+                          ? new Date(item.created_at).toLocaleDateString()
+                          : "N/A"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end space-x-2">
+                          <button
+                            onClick={() => startEditing(item)}
+                            disabled={loading}
+                            className="text-blue-600 hover:text-blue-900 disabled:opacity-50"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteItem(item.id)}
+                            disabled={loading}
+                            className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Item Name
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Enter item name"
-                    required
-                  />
+        {/* Modal for Add/Edit Item */}
+        {showModal && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+              <form onSubmit={handleFormSubmit}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">
+                    {editingItem ? "Edit Item" : "Add New Item"}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Price
-                  </label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Item Name
+                    </label>
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="0.00"
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Enter item name"
                       required
                     />
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Price
+                    </label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.price}
+                        onChange={(e) =>
+                          setFormData({ ...formData, price: e.target.value })
+                        }
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="0.00"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Type
+                    </label>
+                    <select
+                      value={formData.type}
+                      onChange={(e) =>
+                        setFormData({ ...formData, type: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="food">Food</option>
+                      <option value="drink">Drink</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Type
-                  </label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                <div className="flex items-center justify-end space-x-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
                   >
-                    <option value="food">Food</option>
-                    <option value="drink">Drink</option>
-                  </select>
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    {editingItem ? "Update" : "Add"} Item
+                  </button>
                 </div>
-              </div>
-
-              <div className="flex items-center justify-end space-x-3 mt-6">
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  {editingItem ? "Update Item" : "Add Item"}
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* Items Grid */}
-        {loading && !isAddingItem ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <span className="ml-3 text-gray-600">Loading items...</span>
-          </div>
-        ) : filteredItems.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg shadow-sm">
-            <Utensils className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {searchTerm || filterType !== "all" ? "No items found" : "No consumption items yet"}
-            </h3>
-            <p className="text-gray-600 mb-6">
-              {searchTerm || filterType !== "all"
-                ? "Try adjusting your search or filter criteria"
-                : "Start by adding your first food or drink item"}
-            </p>
-            {!searchTerm && filterType === "all" && (
-              <button
-                onClick={() => setIsAddingItem(true)}
-                className="flex items-center mx-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add First Item
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredItems.map((item) => (
-              <div
-                key={item.id}
-                className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow"
-              >
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center">
-                      {item.type === "food" ? (
-                        <Utensils className="w-5 h-5 text-orange-500 mr-2" />
-                      ) : (
-                        <Coffee className="w-5 h-5 text-blue-500 mr-2" />
-                      )}
-                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        {item.type}
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <button
-                        onClick={() => startEditing(item)}
-                        disabled={loading}
-                        className="p-1 text-gray-400 hover:text-blue-600 transition-colors disabled:opacity-50"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteItem(item.id)}
-                        disabled={loading}
-                        className="p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2 truncate">
-                    {item.name}
-                  </h3>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-2xl font-bold text-green-600">
-                      {formatCurrency(item.price)}
-                    </span>
-                    <div className="text-xs text-gray-500">
-                      {item.createdAt && (
-                        <span>
-                          Added {new Date(item.createdAt).toLocaleDateString()}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
+              </form>
+            </div>
           </div>
         )}
       </div>

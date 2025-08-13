@@ -123,6 +123,7 @@ export const API_ENDPOINTS_CONFIG = {
     
   // Posts endpoints
   posts: () => `${COLLABORATION_BASE_URL}/posts`,
+  postById: (postId) => `${COLLABORATION_BASE_URL}/posts/${postId}`,
   postsForBusinessUnit: (businessUnitId, page = 0, size = 20) => 
     `${COLLABORATION_BASE_URL}/posts?businessUnitId=${businessUnitId}&page=${page}&size=${size}`,
 };

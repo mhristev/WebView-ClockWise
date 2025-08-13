@@ -31,6 +31,7 @@ const PostsView = () => {
   // Post detail modal state
   const [selectedPost, setSelectedPost] = useState(null);
   const [showPostModal, setShowPostModal] = useState(false);
+  const [postDetailLoading, setPostDetailLoading] = useState(false);
 
   // Modal state for creating new post
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -200,9 +201,28 @@ const PostsView = () => {
     return `User ${post.authorUserId}`;
   };
 
-  const openPostModal = (post) => {
-    setSelectedPost(post);
-    setShowPostModal(true);
+  const openPostModal = async (post) => {
+    try {
+      setPostDetailLoading(true);
+      setShowPostModal(true);
+      setSelectedPost(post); // Set initial post data first
+
+      // Fetch detailed post information
+      const response = await authenticatedFetch(API_ENDPOINTS_CONFIG.postById(post.id));
+      
+      if (response.ok) {
+        const detailedPost = await response.json();
+        setSelectedPost(detailedPost);
+      } else {
+        console.error("Failed to fetch post details");
+        showError("Failed to load post details. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error fetching post details:", error);
+      showError("Failed to load post details. Please try again.");
+    } finally {
+      setPostDetailLoading(false);
+    }
   };
 
   const closePostModal = () => {
@@ -625,73 +645,80 @@ const PostsView = () => {
               </div>
 
               {/* Post Content */}
-              <div className="space-y-6">
-                {/* Title and Audience */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-2xl font-bold text-gray-900">
-                      {selectedPost.title}
-                    </h4>
-                    <div className="flex items-center space-x-2">
-                      {getTargetAudienceIcon(selectedPost.targetAudience)}
-                      <span className="text-sm font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded-full">
-                        {getTargetAudienceLabel(selectedPost.targetAudience)}
-                      </span>
-                    </div>
-                  </div>
+              {postDetailLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-3 text-gray-600">Loading post details...</span>
                 </div>
-
-                {/* Author and Date Info */}
-                <div className="flex items-center justify-between py-3 border-y border-gray-200">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center">
-                      <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                        <User className="w-5 h-5 text-gray-600" />
-                      </div>
-                      <div className="ml-3">
-                        <p className="text-sm font-medium text-gray-900">
-                          {getAuthorName(selectedPost)}
-                        </p>
-                        <p className="text-xs text-gray-500">Author</p>
+              ) : (
+                <div className="space-y-6">
+                  {/* Title and Audience */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-2xl font-bold text-gray-900">
+                        {selectedPost.title}
+                      </h4>
+                      <div className="flex items-center space-x-2">
+                        {getTargetAudienceIcon(selectedPost.targetAudience)}
+                        <span className="text-sm font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded-full">
+                          {getTargetAudienceLabel(selectedPost.targetAudience)}
+                        </span>
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center text-sm text-gray-500">
-                    <Clock className="w-4 h-4 mr-2" />
-                    {formatDate(selectedPost.createdAt)}
-                  </div>
-                </div>
 
-                {/* Message Content */}
-                <div className="bg-gray-50 rounded-lg p-6">
-                  <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                    Message
-                  </h5>
-                  <div className="prose prose-sm max-w-none">
-                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
-                      {selectedPost.body}
-                    </p>
+                  {/* Author and Date Info */}
+                  <div className="flex items-center justify-between py-3 border-y border-gray-200">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex items-center">
+                        <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                          <User className="w-5 h-5 text-gray-600" />
+                        </div>
+                        <div className="ml-3">
+                          <p className="text-sm font-medium text-gray-900">
+                            {getAuthorName(selectedPost)}
+                          </p>
+                          <p className="text-xs text-gray-500">Author</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center text-sm text-gray-500">
+                      <Clock className="w-4 h-4 mr-2" />
+                      {formatDate(selectedPost.createdAt)}
+                    </div>
                   </div>
-                </div>
 
-                {/* Additional Info */}
-                {/* <div className="bg-blue-50 rounded-lg p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium text-blue-900">Post ID:</span>
-                      <p className="text-blue-800">{selectedPost.id}</p>
-                    </div>
-                    <div>
-                      <span className="font-medium text-blue-900">Created:</span>
-                      <p className="text-blue-800">{formatDate(selectedPost.createdAt)}</p>
-                    </div>
-                    <div>
-                      <span className="font-medium text-blue-900">Last Updated:</span>
-                      <p className="text-blue-800">{formatDate(selectedPost.updatedAt)}</p>
+                  {/* Message Content */}
+                  <div className="bg-gray-50 rounded-lg p-6">
+                    <h5 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+                      Message
+                    </h5>
+                    <div className="prose prose-sm max-w-none">
+                      <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                        {selectedPost.body}
+                      </p>
                     </div>
                   </div>
-                </div> */}
-              </div>
+
+                  {/* Additional Info */}
+                  {/* <div className="bg-blue-50 rounded-lg p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium text-blue-900">Post ID:</span>
+                        <p className="text-blue-800">{selectedPost.id}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-blue-900">Created:</span>
+                        <p className="text-blue-800">{formatDate(selectedPost.createdAt)}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-blue-900">Last Updated:</span>
+                        <p className="text-blue-800">{formatDate(selectedPost.updatedAt)}</p>
+                      </div>
+                    </div>
+                  </div> */}
+                </div>
+              )}
 
               {/* Modal Footer */}
               <div className="flex justify-end mt-6 pt-4 border-t border-gray-200">
