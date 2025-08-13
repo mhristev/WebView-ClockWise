@@ -21,6 +21,7 @@ import BusinessUnitCalendarView from "./pages/BusinessUnitCalendarView";
 import AdminPaycheckGenerator from "./pages/AdminPaycheckGenerator";
 import ConsumptionItemManagement from "./pages/ConsumptionItemManagement";
 import ConsumptionRecordsView from "./pages/ConsumptionRecordsView";
+import PendingShiftExchanges from "./pages/PendingShiftExchanges";
 
 function App() {
   return (
@@ -69,6 +70,14 @@ function App() {
                       element={
                         <ProtectedRoute requiredRole={["MANAGER", "ADMIN"]}>
                           <ConsumptionRecordsView />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/pending-shift-exchanges"
+                      element={
+                        <ProtectedRoute requiredRole={["MANAGER", "ADMIN"]}>
+                          <PendingShiftExchanges />
                         </ProtectedRoute>
                       }
                     />

@@ -16,6 +16,7 @@ import {
   ChevronRight,
   DollarSign,
   Coffee,
+  ArrowRightLeft,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 
@@ -74,6 +75,11 @@ const Layout = ({ children }) => {
                 name: "Consumption Records",
                 path: "/consumption-records",
                 icon: ClipboardList,
+              },
+              {
+                name: "Pending Shift Exchanges",
+                path: "/pending-shift-exchanges",
+                icon: ArrowRightLeft,
               },
             ]
           : []),

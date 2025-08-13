@@ -24,6 +24,11 @@ const API_URLS = {
   ORGANIZATION_API: {
     DEV: "http://localhost:8084/v1",
     PROD: "http://localhost:8084/v1"
+  },
+  // Collaboration service (port 8085)
+  COLLABORATION_API: {
+    DEV: "http://localhost:8085/v1",
+    PROD: "http://localhost:8085/v1"
   }
 };
 
@@ -37,6 +42,7 @@ export const AUTH_BASE_URL = getApiUrl('AUTH_API');
 export const USER_BASE_URL = getApiUrl('USER_API');
 export const PLANNING_BASE_URL = getApiUrl('PLANNING_API');
 export const ORGANIZATION_BASE_URL = getApiUrl('ORGANIZATION_API');
+export const COLLABORATION_BASE_URL = getApiUrl('COLLABORATION_API');
 
 // Specific endpoint builders
 export const API_ENDPOINTS_CONFIG = {
@@ -106,6 +112,14 @@ export const API_ENDPOINTS_CONFIG = {
     `${PLANNING_BASE_URL}/work-sessions/management/modify-and-confirm`,
   updateSessionNote: () => 
     `${PLANNING_BASE_URL}/work-sessions/management/session-note`,
+  
+  // Collaboration service endpoints
+  awaitingApprovalExchanges: (businessUnitId) => 
+    `${COLLABORATION_BASE_URL}/marketplace/manager/awaiting-approval${businessUnitId ? `?businessUnitId=${businessUnitId}` : ''}`,
+  approveRequest: (requestId) => 
+    `${COLLABORATION_BASE_URL}/marketplace/manager/requests/${requestId}/approve`,
+  rejectRequest: (requestId) => 
+    `${COLLABORATION_BASE_URL}/marketplace/manager/requests/${requestId}/reject`,
 };
 
 // Environment info for debugging
@@ -115,6 +129,7 @@ export const ENV_INFO = {
   userApiUrl: USER_BASE_URL,
   planningApiUrl: PLANNING_BASE_URL,
   organizationApiUrl: ORGANIZATION_BASE_URL,
+  collaborationApiUrl: COLLABORATION_BASE_URL,
   viteEnv: import.meta.env.MODE
 };
 
