@@ -278,193 +278,218 @@ const PendingShiftExchanges = () => {
           </p>
         </div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-2">
-          {filteredExchanges.map((exchange) => (
-            <div
-              key={exchange.exchangeShift.id}
-              className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
-            >
-              {/* Exchange Header */}
-              <div className="p-6 border-b border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="bg-orange-100 rounded-full p-2">
-                      <ArrowRightLeft size={20} className="text-orange-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        Shift Exchange Request
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        {getRequestTypeDisplay(
-                          exchange.acceptedRequest.requestType
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                      Awaiting Approval
-                    </span>
-                  </div>
-                </div>
-              </div>
+        <div className="space-y-6">
+          {filteredExchanges.map((exchange) => {
+            const isSwapRequest = exchange.acceptedRequest.requestType === "SWAP_SHIFT";
+            const requestTypeConfig = isSwapRequest
+              ? {
+                  bgColor: "bg-blue-50",
+                  borderColor: "border-blue-200",
+                  iconBg: "bg-blue-100",
+                  iconColor: "text-blue-600",
+                  badgeBg: "bg-blue-100",
+                  badgeText: "text-blue-800",
+                  icon: ArrowRightLeft,
+                  title: "Shift Swap Request",
+                  description: "Employee wants to exchange shifts"
+                }
+              : {
+                  bgColor: "bg-orange-50",
+                  borderColor: "border-orange-200",
+                  iconBg: "bg-orange-100",
+                  iconColor: "text-orange-600",
+                  badgeBg: "bg-orange-100",
+                  badgeText: "text-orange-800",
+                  icon: User,
+                  title: "Shift Coverage Request",
+                  description: "Employee needs someone to cover their shift"
+                };
 
-              {/* Original Shift Details */}
-              <div className="p-6 border-b border-gray-100">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                  <User size={14} className="mr-2 text-blue-600" />
-                  Original Shift (Posted by)
-                </h4>
-                <div className="bg-blue-50 rounded-lg p-4 space-y-3">
+            return (
+              <div
+                key={exchange.exchangeShift.id}
+                className={`bg-white border ${requestTypeConfig.borderColor} rounded-2xl shadow-sm hover:shadow-lg transition-all duration-200 overflow-hidden`}
+                role="article"
+                aria-label={`${requestTypeConfig.title} from ${exchange.acceptedRequest.requesterUserFirstName} ${exchange.acceptedRequest.requesterUserLastName}`}
+              >
+                {/* Header Section */}
+                <div className={`${requestTypeConfig.bgColor} px-6 py-4 border-b ${requestTypeConfig.borderColor}`}>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Employee:</span>
-                    <span className="text-sm font-semibold text-gray-900">
-                      {exchange.exchangeShift.userFirstName}{" "}
-                      {exchange.exchangeShift.userLastName}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Position:</span>
-                    <span className="text-sm font-medium text-gray-900">
-                      {exchange.exchangeShift.shiftPosition || "N/A"}
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Date:</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {formatDateOnly(exchange.exchangeShift.shiftStartTime)}
-                      </span>
+                    <div className="flex items-center space-x-4">
+                      <div className={`${requestTypeConfig.iconBg} rounded-xl p-3 flex items-center justify-center`}>
+                        <requestTypeConfig.icon size={24} className={requestTypeConfig.iconColor} />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">
+                          {requestTypeConfig.title}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          {requestTypeConfig.description}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Start Time:</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {formatTimeOnly(exchange.exchangeShift.shiftStartTime)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">End Time:</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {formatTimeOnly(exchange.exchangeShift.shiftEndTime)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between pt-2 border-t border-blue-200">
-                      <span className="text-sm text-gray-600">Posted:</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {formatDateTime(exchange.exchangeShift.createdAt)}
+                    <div className="text-right">
+                      <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold ${requestTypeConfig.badgeBg} ${requestTypeConfig.badgeText}`}>
+                        <Clock size={14} className="mr-1.5" />
+                        Pending Approval
                       </span>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Requester Details */}
-              <div className="p-6">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                  <User size={14} className="mr-2 text-green-600" />
-                  Requested by
-                </h4>
-                <div className="bg-green-50 rounded-lg p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Employee:</span>
-                    <span className="text-sm font-semibold text-gray-900">
-                      {exchange.acceptedRequest.requesterUserFirstName}{" "}
-                      {exchange.acceptedRequest.requesterUserLastName}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Request Type:</span>
-                    <span
-                      className={`text-sm font-medium px-2 py-1 rounded text-white ${
-                        exchange.acceptedRequest.requestType === "SWAP_SHIFT"
-                          ? "bg-blue-500"
-                          : "bg-orange-500"
-                      }`}
-                    >
-                      {getRequestTypeDisplay(
-                        exchange.acceptedRequest.requestType
-                      )}
-                    </span>
-                  </div>
-
-                  {exchange.acceptedRequest.requestType === "SWAP_SHIFT" && (
-                    <div className="mt-3 p-3 bg-white rounded-lg border border-green-200">
-                      <h5 className="text-sm font-semibold text-gray-700 mb-2">
-                        Swap Shift Details:
-                      </h5>
-                      <div className="space-y-2">
+                {/* Main Content */}
+                <div className="p-6">
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {/* Original Shift (Left Column) */}
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-2 mb-3">
+                        <div className="w-2 h-2 bg-slate-600 rounded-full"></div>
+                        <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
+                          Shift to Cover
+                        </h4>
+                      </div>
+                      
+                      <div className="bg-slate-50 rounded-xl p-4 space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">
-                            Position:
-                          </span>
-                          <span className="text-sm font-medium text-gray-900">
-                            {exchange.acceptedRequest.swapShiftPosition ||
-                              "N/A"}
+                          <span className="text-sm font-medium text-gray-700">Employee</span>
+                          <span className="text-sm font-bold text-gray-900">
+                            {exchange.exchangeShift.userFirstName} {exchange.exchangeShift.userLastName}
                           </span>
                         </div>
+                        
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Date:</span>
-                          <span className="text-sm font-medium text-gray-900">
-                            {formatDateOnly(
-                              exchange.acceptedRequest.swapShiftStartTime
-                            )}
+                          <span className="text-sm font-medium text-gray-700">Position</span>
+                          <span className="text-sm font-semibold text-gray-900 bg-white px-2 py-1 rounded-md">
+                            {exchange.exchangeShift.shiftPosition || "N/A"}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">
-                            Start Time:
-                          </span>
-                          <span className="text-sm font-medium text-gray-900">
-                            {formatTimeOnly(
-                              exchange.acceptedRequest.swapShiftStartTime
-                            )}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">
-                            End Time:
-                          </span>
-                          <span className="text-sm font-medium text-gray-900">
-                            {formatTimeOnly(
-                              exchange.acceptedRequest.swapShiftEndTime
-                            )}
-                          </span>
+                        
+                        <div className="pt-2 border-t border-slate-200">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium text-gray-700">Date</span>
+                            <span className="text-sm font-bold text-gray-900">
+                              {formatDateOnly(exchange.exchangeShift.shiftStartTime)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-700">Time</span>
+                            <span className="text-sm font-bold text-gray-900">
+                              {formatTimeOnly(exchange.exchangeShift.shiftStartTime)} - {formatTimeOnly(exchange.exchangeShift.shiftEndTime)}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  )}
 
-                  <div className="flex items-center justify-between pt-2 border-t border-green-200">
-                    <span className="text-sm text-gray-600">Requested:</span>
-                    <span className="text-sm font-medium text-gray-900">
-                      {formatDateTime(exchange.acceptedRequest.createdAt)}
-                    </span>
+                    {/* Requester Info (Right Column) */}
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-2 mb-3">
+                        <div className={`w-2 h-2 ${isSwapRequest ? 'bg-blue-500' : 'bg-orange-500'} rounded-full`}></div>
+                        <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
+                          {isSwapRequest ? "Swap Partner" : "Coverage Volunteer"}
+                        </h4>
+                      </div>
+                      
+                      <div className={`${isSwapRequest ? 'bg-blue-50' : 'bg-orange-50'} rounded-xl p-4 space-y-3`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-700">Employee</span>
+                          <span className="text-sm font-bold text-gray-900">
+                            {exchange.acceptedRequest.requesterUserFirstName} {exchange.acceptedRequest.requesterUserLastName}
+                          </span>
+                        </div>
+                        
+                        {isSwapRequest && (
+                          <>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-gray-700">Their Position</span>
+                              <span className="text-sm font-semibold text-gray-900 bg-white px-2 py-1 rounded-md">
+                                {exchange.acceptedRequest.swapShiftPosition || "N/A"}
+                              </span>
+                            </div>
+                            
+                            <div className="pt-2 border-t border-blue-200">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-gray-700">Their Date</span>
+                                <span className="text-sm font-bold text-gray-900">
+                                  {formatDateOnly(exchange.acceptedRequest.swapShiftStartTime)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium text-gray-700">Their Time</span>
+                                <span className="text-sm font-bold text-gray-900">
+                                  {formatTimeOnly(exchange.acceptedRequest.swapShiftStartTime)} - {formatTimeOnly(exchange.acceptedRequest.swapShiftEndTime)}
+                                </span>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                        
+                        <div className={`pt-2 border-t ${isSwapRequest ? 'border-blue-200' : 'border-orange-200'}`}>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-700">Requested</span>
+                            <span className="text-xs text-gray-600">
+                              {formatDateTime(exchange.acceptedRequest.createdAt)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Summary Banner */}
+                  <div className={`mt-6 ${isSwapRequest ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200'} border rounded-xl p-4`}>
+                    <div className="flex items-start space-x-3">
+                      <div className={`${isSwapRequest ? 'bg-blue-100' : 'bg-orange-100'} rounded-lg p-2 mt-0.5`}>
+                        {isSwapRequest ? (
+                          <ArrowRightLeft size={16} className={isSwapRequest ? 'text-blue-600' : 'text-orange-600'} />
+                        ) : (
+                          <User size={16} className="text-orange-600" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-gray-900 mb-1">
+                          {isSwapRequest ? "Mutual Shift Exchange" : "Shift Coverage Request"}
+                        </p>
+                        <p className="text-sm text-gray-700">
+                          {isSwapRequest 
+                            ? `${exchange.acceptedRequest.requesterUserFirstName} wants to swap their ${formatDateOnly(exchange.acceptedRequest.swapShiftStartTime)} shift with ${exchange.exchangeShift.userFirstName}'s ${formatDateOnly(exchange.exchangeShift.shiftStartTime)} shift.`
+                            : `${exchange.acceptedRequest.requesterUserFirstName} wants to cover ${exchange.exchangeShift.userFirstName}'s shift on ${formatDateOnly(exchange.exchangeShift.shiftStartTime)}.`
+                          }
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-gray-500">
+                      Posted {formatDateTime(exchange.exchangeShift.createdAt)}
+                    </div>
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={() => handleRejectClick(exchange)}
+                        className="px-5 py-2.5 border-2 border-red-200 text-red-700 bg-white hover:bg-red-50 hover:border-red-300 rounded-xl font-semibold flex items-center transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                        aria-label={`Reject ${requestTypeConfig.title.toLowerCase()}`}
+                      >
+                        <XCircle size={16} className="mr-2" />
+                        Reject
+                      </button>
+                      <button
+                        onClick={() => handleApproveClick(exchange)}
+                        className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold flex items-center transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 shadow-sm hover:shadow-md"
+                        aria-label={`Approve ${requestTypeConfig.title.toLowerCase()}`}
+                      >
+                        <Check size={16} className="mr-2" />
+                        Approve
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-
-              {/* Action Buttons */}
-              <div className="p-6 border-t border-gray-200 bg-gray-50">
-                <div className="flex justify-end space-x-3">
-                  <button
-                    onClick={() => handleRejectClick(exchange)}
-                    className="px-4 py-2 border border-red-300 text-red-700 bg-white hover:bg-red-50 rounded-lg flex items-center transition-colors"
-                  >
-                    <XCircle size={16} className="mr-2" />
-                    Reject
-                  </button>
-                  <button
-                    onClick={() => handleApproveClick(exchange)}
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center transition-colors"
-                  >
-                    <Check size={16} className="mr-2" />
-                    Approve
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

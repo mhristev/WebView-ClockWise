@@ -20,8 +20,7 @@ import AdminOrganizationManagement from "./pages/AdminOrganizationManagement";
 import ManagerEmployeeScheduleView from "./pages/ManagerEmployeeScheduleView";
 import BusinessUnitCalendarView from "./pages/BusinessUnitCalendarView";
 import AdminPaycheckGenerator from "./pages/AdminPaycheckGenerator";
-import ConsumptionItemManagement from "./pages/ConsumptionItemManagement";
-import ConsumptionRecordsView from "./pages/ConsumptionRecordsView";
+import ConsumptionManagement from "./pages/ConsumptionManagement";
 import PendingShiftExchanges from "./pages/PendingShiftExchanges";
 import PostsView from "./pages/PostsView";
 
@@ -61,18 +60,10 @@ function App() {
                         }
                       />
                       <Route
-                        path="/consumption-items"
+                        path="/consumption"
                         element={
                           <ProtectedRoute requiredRole={["MANAGER", "ADMIN"]}>
-                            <ConsumptionItemManagement />
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="/consumption-records"
-                        element={
-                          <ProtectedRoute requiredRole={["MANAGER", "ADMIN"]}>
-                            <ConsumptionRecordsView />
+                            <ConsumptionManagement />
                           </ProtectedRoute>
                         }
                       />

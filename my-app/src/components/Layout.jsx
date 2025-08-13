@@ -68,14 +68,9 @@ const Layout = ({ children }) => {
                 icon: Building,
               },
               {
-                name: "Consumption Items",
-                path: "/consumption-items",
+                name: "Consumption Management",
+                path: "/consumption",
                 icon: Coffee,
-              },
-              {
-                name: "Consumption Records",
-                path: "/consumption-records",
-                icon: ClipboardList,
               },
               {
                 name: "Pending Shift Exchanges",
