@@ -22,6 +22,7 @@ import AdminPaycheckGenerator from "./pages/AdminPaycheckGenerator";
 import ConsumptionItemManagement from "./pages/ConsumptionItemManagement";
 import ConsumptionRecordsView from "./pages/ConsumptionRecordsView";
 import PendingShiftExchanges from "./pages/PendingShiftExchanges";
+import PostsView from "./pages/PostsView";
 
 function App() {
   return (
@@ -78,6 +79,14 @@ function App() {
                       element={
                         <ProtectedRoute requiredRole={["MANAGER", "ADMIN"]}>
                           <PendingShiftExchanges />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/posts"
+                      element={
+                        <ProtectedRoute requiredRole={["MANAGER", "ADMIN"]}>
+                          <PostsView />
                         </ProtectedRoute>
                       }
                     />

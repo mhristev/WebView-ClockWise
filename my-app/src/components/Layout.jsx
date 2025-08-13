@@ -17,6 +17,7 @@ import {
   DollarSign,
   Coffee,
   ArrowRightLeft,
+  MessageSquare,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 
@@ -80,6 +81,11 @@ const Layout = ({ children }) => {
                 name: "Pending Shift Exchanges",
                 path: "/pending-shift-exchanges",
                 icon: ArrowRightLeft,
+              },
+              {
+                name: "Posts",
+                path: "/posts",
+                icon: MessageSquare,
               },
             ]
           : []),

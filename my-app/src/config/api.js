@@ -120,6 +120,11 @@ export const API_ENDPOINTS_CONFIG = {
     `${COLLABORATION_BASE_URL}/marketplace/manager/requests/${requestId}/approve`,
   rejectRequest: (requestId) => 
     `${COLLABORATION_BASE_URL}/marketplace/manager/requests/${requestId}/reject`,
+    
+  // Posts endpoints
+  posts: () => `${COLLABORATION_BASE_URL}/posts`,
+  postsForBusinessUnit: (businessUnitId, page = 0, size = 20) => 
+    `${COLLABORATION_BASE_URL}/posts?businessUnitId=${businessUnitId}&page=${page}&size=${size}`,
 };
 
 // Environment info for debugging
