@@ -732,15 +732,13 @@ const AdminUserManagement = () => {
                     </div>
                   </div>
                   
-                  {!userData.isCurrentUser && (
-                    <button
-                      onClick={() => handleEditUser(userData)}
-                      className="p-2 text-purple-500 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
-                      title="Edit user"
-                    >
-                      <Edit3 size={16} />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleEditUser(userData)}
+                    className="p-2 text-purple-500 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
+                    title="Edit user"
+                  >
+                    <Edit3 size={16} />
+                  </button>
                 </div>
                 
                 {/* Role and Status Badges */}
