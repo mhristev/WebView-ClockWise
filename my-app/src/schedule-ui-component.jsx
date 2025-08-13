@@ -130,7 +130,9 @@ const createShiftRequest = (
   shiftDate,
   startTimeStr,
   endTimeStr,
-  position
+  position,
+  userFirstName,
+  userLastName
 ) => {
   // Parse the time strings
   const [startHour, startMinStr] = startTimeStr.split(":");
@@ -178,6 +180,8 @@ const createShiftRequest = (
     endTime: endTimeISO,
     position: position,
     businessUnitId: null, // Let the backend handle this
+    userFirstName,
+    userLastName,
   };
 };
 
@@ -623,13 +627,20 @@ function ScheduleApp() {
         const shiftDate = new Date(currentWeekStart);
         shiftDate.setDate(shiftDate.getDate() + shift.day);
 
+        // Find employee data to get firstName and lastName
+        const employee = employees.find(emp => emp.id === shift.employeeId);
+        const userFirstName = employee?.firstName || employee?.name?.split(' ')[0] || '';
+        const userLastName = employee?.lastName || employee?.name?.split(' ')[1] || '';
+
         const shiftRequest = createShiftRequest(
           scheduleData.id,
           shift.employeeId,
           shiftDate,
           shift.startTime,
           shift.endTime,
-          shift.position
+          shift.position,
+          userFirstName,
+          userLastName
         );
 
         const savePromise = authenticatedFetch(API_ENDPOINTS_CONFIG.shifts(), {
@@ -1034,6 +1045,11 @@ function ScheduleApp() {
       const shiftDate = new Date(currentWeekStart);
       shiftDate.setDate(shiftDate.getDate() + day);
 
+      // Find employee data to get firstName and lastName
+      const employee = employees.find(emp => emp.id === employeeId);
+      const userFirstName = employee?.firstName || employee?.name?.split(' ')[0] || '';
+      const userLastName = employee?.lastName || employee?.name?.split(' ')[1] || '';
+
       // Create the shift request using our time-preserving function
       const shiftRequest = createShiftRequest(
         scheduleId,
@@ -1041,7 +1057,9 @@ function ScheduleApp() {
         shiftDate,
         currentShift.startTime,
         currentShift.endTime,
-        currentShift.position
+        currentShift.position,
+        userFirstName,
+        userLastName
       );
 
       console.log("Shift request with preserved times:", shiftRequest);
