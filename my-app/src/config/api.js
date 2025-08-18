@@ -120,6 +120,8 @@ export const API_ENDPOINTS_CONFIG = {
     `${COLLABORATION_BASE_URL}/marketplace/manager/requests/${requestId}/approve`,
   rejectRequest: (requestId) => 
     `${COLLABORATION_BASE_URL}/marketplace/manager/requests/${requestId}/reject`,
+  recheckConflicts: (requestId) => 
+    `${COLLABORATION_BASE_URL}/marketplace/manager/requests/${requestId}/recheck-conflicts`,
     
   // Posts endpoints
   posts: () => `${COLLABORATION_BASE_URL}/posts`,

@@ -28,6 +28,8 @@ const PendingShiftExchanges = () => {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [actionType, setActionType] = useState(null); // 'approve' or 'reject'
   const [isProcessing, setIsProcessing] = useState(false);
+  const [recheckingConflicts, setRecheckingConflicts] = useState(new Set());
+  const [lastRefreshTime, setLastRefreshTime] = useState(null);
 
   const fetchPendingExchanges = async () => {
     const businessUnitId = getRestaurantId();
@@ -56,6 +58,7 @@ const PendingShiftExchanges = () => {
       const data = await response.json();
       console.log("Pending exchanges data:", data);
       setExchanges(data || []);
+      setLastRefreshTime(new Date());
     } catch (error) {
       console.error("Error fetching pending exchanges:", error);
       showError(`Failed to load pending shift exchanges: ${error.message}`);
@@ -68,6 +71,17 @@ const PendingShiftExchanges = () => {
   useEffect(() => {
     if (user && (user.role === "MANAGER" || user.role === "ADMIN")) {
       fetchPendingExchanges();
+    }
+  }, [user, authenticatedFetch]);
+
+  // Auto-refresh every 30 seconds to pick up conflict status changes
+  useEffect(() => {
+    if (user && (user.role === "MANAGER" || user.role === "ADMIN")) {
+      const interval = setInterval(() => {
+        fetchPendingExchanges();
+      }, 30000); // 30 seconds
+
+      return () => clearInterval(interval);
     }
   }, [user, authenticatedFetch]);
 
@@ -134,6 +148,40 @@ const PendingShiftExchanges = () => {
     setShowConfirmModal(false);
     setSelectedRequest(null);
     setActionType(null);
+  };
+
+  const handleRecheckConflicts = async (requestId) => {
+    setRecheckingConflicts((prev) => new Set(prev).add(requestId));
+
+    try {
+      const response = await authenticatedFetch(
+        API_ENDPOINTS_CONFIG.recheckConflicts(requestId),
+        { method: "POST" }
+      );
+
+      if (response.status === 401) {
+        showError("Session expired. Please log in again.");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      showSuccess("Conflict check completed. Results updated.");
+
+      // Refresh the exchanges list to get updated conflict status
+      await fetchPendingExchanges();
+    } catch (error) {
+      console.error("Error rechecking conflicts:", error);
+      showError(`Failed to recheck conflicts: ${error.message}`);
+    } finally {
+      setRecheckingConflicts((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(requestId);
+        return newSet;
+      });
+    }
   };
 
   const formatDateTime = (dateTimeString) => {
@@ -226,7 +274,12 @@ const PendingShiftExchanges = () => {
               </h1>
               <p className="text-gray-500">
                 {user?.businessUnitName || "Business Unit"} • {exchanges.length}{" "}
-                pending approvals
+                pending approval{exchanges.length !== 1 ? "s" : ""}
+                {lastRefreshTime && (
+                  <span className="ml-2 text-xs text-gray-400">
+                    • Last updated {lastRefreshTime.toLocaleTimeString()}
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -280,7 +333,8 @@ const PendingShiftExchanges = () => {
       ) : (
         <div className="space-y-6">
           {filteredExchanges.map((exchange) => {
-            const isSwapRequest = exchange.acceptedRequest.requestType === "SWAP_SHIFT";
+            const isSwapRequest =
+              exchange.acceptedRequest.requestType === "SWAP_SHIFT";
             const requestTypeConfig = isSwapRequest
               ? {
                   bgColor: "bg-blue-50",
@@ -291,7 +345,7 @@ const PendingShiftExchanges = () => {
                   badgeText: "text-blue-800",
                   icon: ArrowRightLeft,
                   title: "Shift Swap Request",
-                  description: "Employee wants to exchange shifts"
+                  description: "Employee wants to exchange shifts",
                 }
               : {
                   bgColor: "bg-orange-50",
@@ -302,7 +356,7 @@ const PendingShiftExchanges = () => {
                   badgeText: "text-orange-800",
                   icon: User,
                   title: "Shift Coverage Request",
-                  description: "Employee needs someone to cover their shift"
+                  description: "Employee needs someone to cover their shift",
                 };
 
             return (
@@ -313,11 +367,18 @@ const PendingShiftExchanges = () => {
                 aria-label={`${requestTypeConfig.title} from ${exchange.acceptedRequest.requesterUserFirstName} ${exchange.acceptedRequest.requesterUserLastName}`}
               >
                 {/* Header Section */}
-                <div className={`${requestTypeConfig.bgColor} px-6 py-4 border-b ${requestTypeConfig.borderColor}`}>
+                <div
+                  className={`${requestTypeConfig.bgColor} px-6 py-4 border-b ${requestTypeConfig.borderColor}`}
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
-                      <div className={`${requestTypeConfig.iconBg} rounded-xl p-3 flex items-center justify-center`}>
-                        <requestTypeConfig.icon size={24} className={requestTypeConfig.iconColor} />
+                      <div
+                        className={`${requestTypeConfig.iconBg} rounded-xl p-3 flex items-center justify-center`}
+                      >
+                        <requestTypeConfig.icon
+                          size={24}
+                          className={requestTypeConfig.iconColor}
+                        />
                       </div>
                       <div>
                         <h3 className="text-lg font-bold text-gray-900 mb-1">
@@ -329,7 +390,9 @@ const PendingShiftExchanges = () => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold ${requestTypeConfig.badgeBg} ${requestTypeConfig.badgeText}`}>
+                      <span
+                        className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold ${requestTypeConfig.badgeBg} ${requestTypeConfig.badgeText}`}
+                      >
                         <Clock size={14} className="mr-1.5" />
                         Pending Approval
                       </span>
@@ -348,33 +411,50 @@ const PendingShiftExchanges = () => {
                           Shift to Cover
                         </h4>
                       </div>
-                      
+
                       <div className="bg-slate-50 rounded-xl p-4 space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-gray-700">Employee</span>
+                          <span className="text-sm font-medium text-gray-700">
+                            Employee
+                          </span>
                           <span className="text-sm font-bold text-gray-900">
-                            {exchange.exchangeShift.userFirstName} {exchange.exchangeShift.userLastName}
+                            {exchange.exchangeShift.userFirstName}{" "}
+                            {exchange.exchangeShift.userLastName}
                           </span>
                         </div>
-                        
+
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-gray-700">Position</span>
+                          <span className="text-sm font-medium text-gray-700">
+                            Position
+                          </span>
                           <span className="text-sm font-semibold text-gray-900 bg-white px-2 py-1 rounded-md">
                             {exchange.exchangeShift.shiftPosition || "N/A"}
                           </span>
                         </div>
-                        
+
                         <div className="pt-2 border-t border-slate-200">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium text-gray-700">Date</span>
+                            <span className="text-sm font-medium text-gray-700">
+                              Date
+                            </span>
                             <span className="text-sm font-bold text-gray-900">
-                              {formatDateOnly(exchange.exchangeShift.shiftStartTime)}
+                              {formatDateOnly(
+                                exchange.exchangeShift.shiftStartTime
+                              )}
                             </span>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium text-gray-700">Time</span>
+                            <span className="text-sm font-medium text-gray-700">
+                              Time
+                            </span>
                             <span className="text-sm font-bold text-gray-900">
-                              {formatTimeOnly(exchange.exchangeShift.shiftStartTime)} - {formatTimeOnly(exchange.exchangeShift.shiftEndTime)}
+                              {formatTimeOnly(
+                                exchange.exchangeShift.shiftStartTime
+                              )}{" "}
+                              -{" "}
+                              {formatTimeOnly(
+                                exchange.exchangeShift.shiftEndTime
+                              )}
                             </span>
                           </div>
                         </div>
@@ -384,51 +464,184 @@ const PendingShiftExchanges = () => {
                     {/* Requester Info (Right Column) */}
                     <div className="space-y-4">
                       <div className="flex items-center space-x-2 mb-3">
-                        <div className={`w-2 h-2 ${isSwapRequest ? 'bg-blue-500' : 'bg-orange-500'} rounded-full`}></div>
+                        <div
+                          className={`w-2 h-2 ${
+                            isSwapRequest ? "bg-blue-500" : "bg-orange-500"
+                          } rounded-full`}
+                        ></div>
                         <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
-                          {isSwapRequest ? "Swap Partner" : "Coverage Volunteer"}
+                          {isSwapRequest
+                            ? "Swap Partner"
+                            : "Coverage Volunteer"}
                         </h4>
                       </div>
-                      
-                      <div className={`${isSwapRequest ? 'bg-blue-50' : 'bg-orange-50'} rounded-xl p-4 space-y-3`}>
+
+                      <div
+                        className={`${
+                          isSwapRequest ? "bg-blue-50" : "bg-orange-50"
+                        } rounded-xl p-4 space-y-3`}
+                      >
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-gray-700">Employee</span>
+                          <span className="text-sm font-medium text-gray-700">
+                            Employee
+                          </span>
                           <span className="text-sm font-bold text-gray-900">
-                            {exchange.acceptedRequest.requesterUserFirstName} {exchange.acceptedRequest.requesterUserLastName}
+                            {exchange.acceptedRequest.requesterUserFirstName}{" "}
+                            {exchange.acceptedRequest.requesterUserLastName}
                           </span>
                         </div>
-                        
+
+                        {/* Execution Possibility Indicator */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-700">
+                            Schedule Conflict
+                          </span>
+                          <div className="flex items-center space-x-2">
+                            {recheckingConflicts.has(
+                              exchange.acceptedRequest.id
+                            ) ? (
+                              <div className="flex items-center">
+                                <Loader2
+                                  size={14}
+                                  className="animate-spin text-blue-500 mr-1"
+                                />
+                                <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-md">
+                                  Rechecking...
+                                </span>
+                              </div>
+                            ) : exchange.acceptedRequest.isExecutionPossible ===
+                              null ? (
+                              <div className="flex items-center space-x-1">
+                                <Loader2
+                                  size={14}
+                                  className="animate-spin text-yellow-500 mr-1"
+                                />
+                                <span className="text-xs font-medium text-yellow-600 bg-yellow-100 px-2 py-1 rounded-md">
+                                  Checking...
+                                </span>
+                                <button
+                                  onClick={() =>
+                                    handleRecheckConflicts(
+                                      exchange.acceptedRequest.id
+                                    )
+                                  }
+                                  disabled={recheckingConflicts.has(
+                                    exchange.acceptedRequest.id
+                                  )}
+                                  className="text-xs text-blue-600 hover:text-blue-700 underline ml-1 disabled:opacity-50"
+                                  title="Recheck for conflicts"
+                                >
+                                  Recheck
+                                </button>
+                              </div>
+                            ) : exchange.acceptedRequest.isExecutionPossible ? (
+                              <div className="flex items-center space-x-1">
+                                <CheckCircle
+                                  size={14}
+                                  className="text-green-500 mr-1"
+                                />
+                                <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded-md">
+                                  No Conflict
+                                </span>
+                                <button
+                                  onClick={() =>
+                                    handleRecheckConflicts(
+                                      exchange.acceptedRequest.id
+                                    )
+                                  }
+                                  disabled={recheckingConflicts.has(
+                                    exchange.acceptedRequest.id
+                                  )}
+                                  className="text-xs text-blue-600 hover:text-blue-700 underline ml-1 disabled:opacity-50"
+                                  title="Recheck for conflicts"
+                                >
+                                  Recheck
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center space-x-1">
+                                <AlertCircle
+                                  size={14}
+                                  className="text-red-500 mr-1"
+                                />
+                                <span className="text-xs font-medium text-red-700 bg-red-100 px-2 py-1 rounded-md">
+                                  Has Conflict
+                                </span>
+                                <button
+                                  onClick={() =>
+                                    handleRecheckConflicts(
+                                      exchange.acceptedRequest.id
+                                    )
+                                  }
+                                  disabled={recheckingConflicts.has(
+                                    exchange.acceptedRequest.id
+                                  )}
+                                  className="text-xs text-blue-600 hover:text-blue-700 underline ml-1 disabled:opacity-50"
+                                  title="Recheck for conflicts"
+                                >
+                                  Recheck
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
                         {isSwapRequest && (
                           <>
                             <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-gray-700">Their Position</span>
+                              <span className="text-sm font-medium text-gray-700">
+                                Their Position
+                              </span>
                               <span className="text-sm font-semibold text-gray-900 bg-white px-2 py-1 rounded-md">
-                                {exchange.acceptedRequest.swapShiftPosition || "N/A"}
+                                {exchange.acceptedRequest.swapShiftPosition ||
+                                  "N/A"}
                               </span>
                             </div>
-                            
+
                             <div className="pt-2 border-t border-blue-200">
                               <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm font-medium text-gray-700">Their Date</span>
+                                <span className="text-sm font-medium text-gray-700">
+                                  Their Date
+                                </span>
                                 <span className="text-sm font-bold text-gray-900">
-                                  {formatDateOnly(exchange.acceptedRequest.swapShiftStartTime)}
+                                  {formatDateOnly(
+                                    exchange.acceptedRequest.swapShiftStartTime
+                                  )}
                                 </span>
                               </div>
                               <div className="flex items-center justify-between">
-                                <span className="text-sm font-medium text-gray-700">Their Time</span>
+                                <span className="text-sm font-medium text-gray-700">
+                                  Their Time
+                                </span>
                                 <span className="text-sm font-bold text-gray-900">
-                                  {formatTimeOnly(exchange.acceptedRequest.swapShiftStartTime)} - {formatTimeOnly(exchange.acceptedRequest.swapShiftEndTime)}
+                                  {formatTimeOnly(
+                                    exchange.acceptedRequest.swapShiftStartTime
+                                  )}{" "}
+                                  -{" "}
+                                  {formatTimeOnly(
+                                    exchange.acceptedRequest.swapShiftEndTime
+                                  )}
                                 </span>
                               </div>
                             </div>
                           </>
                         )}
-                        
-                        <div className={`pt-2 border-t ${isSwapRequest ? 'border-blue-200' : 'border-orange-200'}`}>
+
+                        <div
+                          className={`pt-2 border-t ${
+                            isSwapRequest
+                              ? "border-blue-200"
+                              : "border-orange-200"
+                          }`}
+                        >
                           <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium text-gray-700">Requested</span>
+                            <span className="text-sm font-medium text-gray-700">
+                              Requested
+                            </span>
                             <span className="text-xs text-gray-600">
-                              {formatDateTime(exchange.acceptedRequest.createdAt)}
+                              {formatDateTime(
+                                exchange.acceptedRequest.createdAt
+                              )}
                             </span>
                           </div>
                         </div>
@@ -437,24 +650,56 @@ const PendingShiftExchanges = () => {
                   </div>
 
                   {/* Summary Banner */}
-                  <div className={`mt-6 ${isSwapRequest ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200'} border rounded-xl p-4`}>
+                  <div
+                    className={`mt-6 ${
+                      isSwapRequest
+                        ? "bg-blue-50 border-blue-200"
+                        : "bg-orange-50 border-orange-200"
+                    } border rounded-xl p-4`}
+                  >
                     <div className="flex items-start space-x-3">
-                      <div className={`${isSwapRequest ? 'bg-blue-100' : 'bg-orange-100'} rounded-lg p-2 mt-0.5`}>
+                      <div
+                        className={`${
+                          isSwapRequest ? "bg-blue-100" : "bg-orange-100"
+                        } rounded-lg p-2 mt-0.5`}
+                      >
                         {isSwapRequest ? (
-                          <ArrowRightLeft size={16} className={isSwapRequest ? 'text-blue-600' : 'text-orange-600'} />
+                          <ArrowRightLeft
+                            size={16}
+                            className={
+                              isSwapRequest
+                                ? "text-blue-600"
+                                : "text-orange-600"
+                            }
+                          />
                         ) : (
                           <User size={16} className="text-orange-600" />
                         )}
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-semibold text-gray-900 mb-1">
-                          {isSwapRequest ? "Mutual Shift Exchange" : "Shift Coverage Request"}
+                          {isSwapRequest
+                            ? "Mutual Shift Exchange"
+                            : "Shift Coverage Request"}
                         </p>
                         <p className="text-sm text-gray-700">
-                          {isSwapRequest 
-                            ? `${exchange.acceptedRequest.requesterUserFirstName} wants to swap their ${formatDateOnly(exchange.acceptedRequest.swapShiftStartTime)} shift with ${exchange.exchangeShift.userFirstName}'s ${formatDateOnly(exchange.exchangeShift.shiftStartTime)} shift.`
-                            : `${exchange.acceptedRequest.requesterUserFirstName} wants to cover ${exchange.exchangeShift.userFirstName}'s shift on ${formatDateOnly(exchange.exchangeShift.shiftStartTime)}.`
-                          }
+                          {isSwapRequest
+                            ? `${
+                                exchange.acceptedRequest.requesterUserFirstName
+                              } wants to swap their ${formatDateOnly(
+                                exchange.acceptedRequest.swapShiftStartTime
+                              )} shift with ${
+                                exchange.exchangeShift.userFirstName
+                              }'s ${formatDateOnly(
+                                exchange.exchangeShift.shiftStartTime
+                              )} shift.`
+                            : `${
+                                exchange.acceptedRequest.requesterUserFirstName
+                              } wants to cover ${
+                                exchange.exchangeShift.userFirstName
+                              }'s shift on ${formatDateOnly(
+                                exchange.exchangeShift.shiftStartTime
+                              )}.`}
                         </p>
                       </div>
                     </div>
@@ -464,8 +709,35 @@ const PendingShiftExchanges = () => {
                 {/* Action Buttons */}
                 <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
                   <div className="flex items-center justify-between">
-                    <div className="text-xs text-gray-500">
-                      Posted {formatDateTime(exchange.exchangeShift.createdAt)}
+                    <div className="flex items-center space-x-4">
+                      <div className="text-xs text-gray-500">
+                        Posted{" "}
+                        {formatDateTime(exchange.exchangeShift.createdAt)}
+                      </div>
+                      <button
+                        onClick={() =>
+                          handleRecheckConflicts(exchange.acceptedRequest.id)
+                        }
+                        disabled={recheckingConflicts.has(
+                          exchange.acceptedRequest.id
+                        )}
+                        className="text-xs text-blue-600 hover:text-blue-700 hover:underline disabled:opacity-50 flex items-center"
+                        title="Recheck for schedule conflicts"
+                      >
+                        {recheckingConflicts.has(
+                          exchange.acceptedRequest.id
+                        ) ? (
+                          <>
+                            <Loader2 size={12} className="animate-spin mr-1" />
+                            Checking...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw size={12} className="mr-1" />
+                            Recheck Conflicts
+                          </>
+                        )}
+                      </button>
                     </div>
                     <div className="flex space-x-3">
                       <button
@@ -478,11 +750,29 @@ const PendingShiftExchanges = () => {
                       </button>
                       <button
                         onClick={() => handleApproveClick(exchange)}
-                        className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold flex items-center transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 shadow-sm hover:shadow-md"
-                        aria-label={`Approve ${requestTypeConfig.title.toLowerCase()}`}
+                        disabled={
+                          exchange.acceptedRequest.isExecutionPossible === false
+                        }
+                        className={`px-5 py-2.5 rounded-xl font-semibold flex items-center transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 shadow-sm hover:shadow-md ${
+                          exchange.acceptedRequest.isExecutionPossible === false
+                            ? "bg-gray-400 cursor-not-allowed text-white"
+                            : "bg-green-600 hover:bg-green-700 text-white focus:ring-green-500"
+                        }`}
+                        aria-label={`${
+                          exchange.acceptedRequest.isExecutionPossible === false
+                            ? "Cannot approve - has conflicts"
+                            : `Approve ${requestTypeConfig.title.toLowerCase()}`
+                        }`}
+                        title={
+                          exchange.acceptedRequest.isExecutionPossible === false
+                            ? "Cannot approve request due to schedule conflicts"
+                            : ""
+                        }
                       >
                         <Check size={16} className="mr-2" />
-                        Approve
+                        {exchange.acceptedRequest.isExecutionPossible === false
+                          ? "Conflicts"
+                          : "Approve"}
                       </button>
                     </div>
                   </div>
